@@ -1,0 +1,220 @@
+[
+  {
+    "script_external_name": "script_VF_clean",
+    "script_internal_name": "voter_fraud_script_clean",
+    "script_description": "Clean script with proper name handling and clear progression through all steps."
+  },
+  {
+    "step_num": 0,
+    "step_text": "Name and Introduction",
+    "step_goal": "Get user's name and introduce the topic.",
+    "time_estimate": "1 minute",
+    "questions": [
+        {
+            "question_id": "step_0_q_name",
+            "question_text_first_time": "",
+            "question_text_every_time": "Is there a name you'd like me to call you?",
+            "generate_flag": false,
+            "flag_text": null,
+            "flag_required": null,
+            "requires_user_answer": true,
+            "allow_assistant_response": false,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 256
+          },
+        {
+            "question_id": "step_0_q_acknowledge",
+            "question_text_first_time": "Thank the user for their name and introduce yourself as Brook.",
+            "question_text_every_time": "Thanks for joining me! I'm Brook, and I'd like to have a brief conversation with you about voting, voter fraud, and election integrity as it relates to the 2024 election. This is part of an academic research study.",
+            "generate_flag": false,
+            "flag_text": null,
+            "flag_required": null,
+            "requires_user_answer": false,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 256
+          }
+      ]
+  },
+  {
+    "step_num": 1,
+    "step_text": "Election Fraud Refresher",
+    "step_goal": "Offer and provide refresher on election fraud claims.",
+    "time_estimate": "2-3 minutes",
+    "questions": [
+        {
+            "question_id": "step_1_q_offer_refresher",
+            "question_text_first_time": "",
+            "question_text_every_time": "Would you like a refresher about claims of election fraud from the 2020 election?",
+            "generate_flag": true,
+            "flag_text": "Does the user want a refresher about election fraud claims?",
+            "flag_required": null,
+            "requires_user_answer": true,
+            "allow_assistant_response": false,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": true,
+            "max_length": 256
+          },
+          {
+            "question_id": "step_1_q_provide_refresher",
+            "question_text_first_time": "Provide detailed election fraud refresher content.",
+            "question_text_every_time": "Great! Let me explain. After the 2020 presidential election, there were numerous allegations claiming the election was stolen, particularly focusing on swing states like Pennsylvania, Georgia, and Michigan. These claims centered on issues like mail-in ballot fraud, voting machine irregularities, and alleged instances of people voting multiple times. Most of these claims were investigated and found to lack evidence, but they significantly impacted public trust in elections. Does this help clarify the context? Do you have any questions about these claims?",
+            "generate_flag": true,
+            "flag_text": "Does the user have follow-up questions about the refresher?",
+            "flag_required": true,
+            "requires_user_answer": true,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 256
+          }
+      ]
+  },
+  {
+    "step_num": 2,
+    "step_text": "Specific Rumors Introduction",
+    "step_goal": "Introduce discussion of specific election rumors.",
+    "time_estimate": "1 minute",
+    "questions": [
+        {
+            "question_id": "step_2_q_introduce_rumors",
+            "question_text_first_time": "Now I'd like to discuss some specific claims that have been circulating.",
+            "question_text_every_time": "Would you be comfortable discussing a specific rumor I've heard about the election? Your perspective would be really valuable.",
+            "generate_flag": true,
+            "flag_text": "Is the user willing to discuss specific election rumors?",
+            "flag_required": null,
+            "requires_user_answer": true,
+            "allow_assistant_response": false,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 256
+          }
+    ]
+  },
+  {
+    "step_num": 3,
+    "step_text": "First Rumor - Article and Discussion",
+    "step_goal": "Present first article and discuss with follow-up.",
+    "time_estimate": "3-4 minutes",
+    "questions": [
+        {
+            "question_id": "step_3_q_article1",
+            "question_text_first_time": "Let me share an article that addresses one of these claims.",
+            "question_text_every_time": "What are your thoughts on this information? Does anything surprise you or contradict what you've heard before?",
+            "generate_flag": true,
+            "flag_text": "Has the user provided a meaningful response showing engagement with the article?",
+            "flag_required": true,
+            "requires_user_answer": true,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": true,
+            "tool_name": "ARTICLE1",
+            "recallable": false,
+            "max_length": 512
+          },
+          {
+            "question_id": "step_3_q_followup1",
+            "question_text_first_time": "That's interesting!",
+            "question_text_every_time": "Can you tell me more about what specifically struck you? What do you think are the implications of this information?",
+            "generate_flag": true,
+            "flag_text": "Has the user engaged in deeper discussion?",
+            "flag_required": true,
+            "requires_user_answer": true,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 512
+          }
+    ]
+  },
+  {
+    "step_num": 4,
+    "step_text": "Second Rumor - Article and Discussion", 
+    "step_goal": "Present second article and discuss with follow-up.",
+    "time_estimate": "3-4 minutes",
+    "questions": [
+        {
+            "question_id": "step_4_q_article2",
+            "question_text_first_time": "Here's another article that addresses a different election-related claim.",
+            "question_text_every_time": "What do you make of this information? How does it compare to the first article we discussed?",
+            "generate_flag": true,
+            "flag_text": "Has the user provided thoughts on the second article?",
+            "flag_required": null,
+            "requires_user_answer": true,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": true,
+            "tool_name": "ARTICLE2",
+            "recallable": false,
+            "max_length": 512
+          },
+          {
+            "question_id": "step_4_q_followup2",
+            "question_text_first_time": "Thanks for sharing your perspective!",
+            "question_text_every_time": "Looking at both articles together, do you see any patterns or connections between these different claims?",
+            "generate_flag": true,
+            "flag_text": "Has the user made connections between the articles?",
+            "flag_required": true,
+            "requires_user_answer": true,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 512
+          }
+    ]
+  },
+  {
+    "step_num": 5,
+    "step_text": "Reflection and Conclusion",
+    "step_goal": "Gather final thoughts and wrap up.",
+    "time_estimate": "2 minutes",
+    "questions": [
+        {
+            "question_id": "step_5_q_reflection",
+            "question_text_first_time": "We've covered a lot of ground today.",
+            "question_text_every_time": "Based on our conversation and the information we've discussed, what are your overall thoughts? Has anything changed in how you think about election-related claims?",
+            "generate_flag": true,
+            "flag_text": "Has the user provided thoughtful reflection?",
+            "flag_required": null,
+            "requires_user_answer": true,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 512
+          },
+          {
+            "question_id": "step_5_q_final",
+            "question_text_first_time": "Thank you so much for this thoughtful conversation about election integrity.",
+            "question_text_every_time": "Is there anything else about elections or voting that you'd like to discuss before we wrap up?",
+            "generate_flag": false,
+            "flag_text": null,
+            "flag_required": null,
+            "requires_user_answer": false,
+            "allow_assistant_response": true,
+            "verbatim": false,
+            "use_tool": false,
+            "tool_name": "",
+            "recallable": false,
+            "max_length": 256
+          }
+    ]
+  }
+]

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<!-- Version: 1.6.1 - Added AI domain -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Domain Selection - Generalized Misinformation Inoculation</title>
+    <link rel="stylesheet" href="chat_assets/index.css">
+    <style>
+        .domain-selection-container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 40px 20px;
+        }
+        
+        .header-section {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .main-title {
+            font-size: 2.5em;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+        
+        .info-banner {
+            background: linear-gradient(135deg, #e7f3ff 0%, #f0f8ff 100%);
+            border: 1px solid #b8daff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        
+        .domains-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+        
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            .domains-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                margin: 20px 0;
+            }
+            
+            .domain-card {
+                padding: 20px;
+                margin: 0 10px;
+            }
+            
+            .domain-selection-container {
+                padding: 20px 10px;
+                margin: 20px auto;
+            }
+            
+            .main-title {
+                font-size: 2em;
+            }
+            
+            .domain-title {
+                font-size: 1.5em;
+            }
+        }
+        
+        .domain-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        
+        .domain-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        /* Fix mobile touch scrolling issues */
+        @media (max-width: 768px) {
+            .domain-card:hover {
+                transform: none;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            }
+            
+            .domain-card {
+                -webkit-overflow-scrolling: touch;
+                touch-action: manipulation;
+            }
+            
+            body {
+                -webkit-overflow-scrolling: touch;
+                overflow-x: hidden;
+            }
+        }
+        
+        .domain-card.elections {
+            border-color: #007bff;
+        }
+        
+        .domain-card.elections:hover {
+            border-color: #0056b3;
+            box-shadow: 0 12px 40px rgba(0,123,255,0.25);
+        }
+        
+        .domain-card.vaccines {
+            border-color: #28a745;
+        }
+        
+        .domain-card.vaccines:hover {
+            border-color: #1e7e34;
+            box-shadow: 0 12px 40px rgba(40,167,69,0.25);
+        }
+        
+        .domain-card.ai {
+            border-color: #6610f2;
+        }
+        
+        .domain-card.ai:hover {
+            border-color: #520dc2;
+            box-shadow: 0 12px 40px rgba(102,16,242,0.25);
+        }
+        
+        .domain-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        .domain-title {
+            font-size: 1.8em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .domain-description {
+            color: #6c757d;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            font-size: 1.05em;
+        }
+        
+        .domain-features {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .domain-features h4 {
+            color: #495057;
+            margin-bottom: 12px;
+            font-size: 1.1em;
+            text-align: center;
+        }
+        
+        .domain-features ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #6c757d;
+        }
+        
+        .domain-features li {
+            margin-bottom: 8px;
+        }
+        
+        .start-button {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .start-button:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,123,255,0.3);
+        }
+        
+        .vaccines .start-button {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+        }
+        
+        .vaccines .start-button:hover {
+            background: linear-gradient(135deg, #1e7e34 0%, #155724 100%);
+            box-shadow: 0 8px 20px rgba(40,167,69,0.3);
+        }
+        
+        .ai .start-button {
+            background: linear-gradient(135deg, #6610f2 0%, #520dc2 100%);
+        }
+        
+        .ai .start-button:hover {
+            background: linear-gradient(135deg, #520dc2 0%, #3d0a91 100%);
+            box-shadow: 0 8px 20px rgba(102,16,242,0.3);
+        }
+        
+        .experimental-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: linear-gradient(45deg, #FF9800, #FF5722);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(255,152,0,0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .footer-links {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .footer-links a {
+            color: #007bff;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: 500;
+        }
+        
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="domain-selection-container">
+        <div class="header-section">
+            <h1 class="main-title">🧪 Choose Your Research Domain</h1>
+            <p class="subtitle" id="platform-subtitle">Multi-Domain Misinformation Inoculation Research Platform</p>
+            
+            <div class="info-banner">
+                <h3 style="color: #0056b3; margin-bottom: 15px;" id="study-title">🔬 Academic Research Study</h3>
+                <p style="margin: 0; font-size: 1.05em;">This domain-agnostic system uses the same proven inoculation methodology across different misinformation domains. All domains now use fully configurable YAML-based content with no hardcoded elements.</p>
+            </div>
+        </div>
+        
+        <div class="domains-grid">
+            <a href="/optimizedbot?domain=elections" class="domain-card elections" onclick="trackDomainSelection('elections')">
+                <div class="experimental-badge">🔬 Research</div>
+                <div class="domain-icon">🗳️</div>
+                <div class="domain-title">Election Integrity</div>
+                <div class="domain-description">
+                    Explore evidence-based conversations about election processes, voting systems, and election fraud claims using our proven optimized agents.
+                </div>
+                <div class="domain-features">
+                    <h4>Research Topics:</h4>
+                    <ul>
+                        <li>Non-citizen voting misconceptions</li>
+                        <li>Voter registration accuracy</li>
+                        <li>Election security measures</li>
+                        <li>Democratic process education</li>
+                    </ul>
+                </div>
+                <button class="start-button">Start Election Research</button>
+            </a>
+            
+            <a href="/optimizedbot?domain=vaccines" class="domain-card vaccines" onclick="trackDomainSelection('vaccines')">
+                <div class="experimental-badge">🔬 Research</div>
+                <div class="domain-icon">💉</div>
+                <div class="domain-title">Vaccine Science</div>
+                <div class="domain-description">
+                    Engage with scientifically-grounded conversations about vaccine safety, immunology, and health misinformation using our optimized conversation system.
+                </div>
+                <div class="domain-features">
+                    <h4>Research Topics:</h4>
+                    <ul>
+                        <li>Autism-vaccine myth debunking</li>
+                        <li>mRNA vaccine science</li>
+                        <li>Immunization effectiveness</li>
+                        <li>Public health evidence</li>
+                    </ul>
+                </div>
+                <button class="start-button">Start Vaccine Research</button>
+            </a>
+            
+            <a href="/optimizedbot?domain=ai" class="domain-card ai" onclick="trackDomainSelection('ai')">
+                <div class="experimental-badge">🔬 Research</div>
+                <div class="domain-icon">🤖</div>
+                <div class="domain-title">AI Capabilities</div>
+                <div class="domain-description">
+                    Understand the real capabilities and limitations of artificial intelligence through evidence-based conversations about AI safety, reliability, and responsible use.
+                </div>
+                <div class="domain-features">
+                    <h4>Research Topics:</h4>
+                    <ul>
+                        <li>Self-driving car safety</li>
+                        <li>AI hallucination risks</li>
+                        <li>Legal and mental health AI</li>
+                        <li>Responsible AI use</li>
+                    </ul>
+                </div>
+                <button class="start-button">Start AI Research</button>
+            </a>
+        </div>
+        
+        <div class="info-banner">
+            <h3 style="color: #0056b3; margin-bottom: 15px;">🎯 Research Methodology</h3>
+            <p style="margin: 0;">All domains use the same evidence-based <strong>inoculation approach</strong>: forewarning about misinformation, exposure to weakened doses of false claims, and prebunking with factual information. This helps build cognitive resistance against misinformation.</p>
+            <br>
+            <p style="margin: 0; font-style: italic;">Academic collaboration between Caltech and Washington University exploring AI-powered approaches to misinformation resistance.</p>
+        </div>
+        
+        <div class="footer-links">
+            <a href="/">← Back to Home</a>
+            <a href="/article">Article Generator</a>
+            <a href="/prebunk">Prebunk Tool</a>
+        </div>
+    </div>
+    
+    <script>
+        // Update version on page load if available
+        window.addEventListener('DOMContentLoaded', function() {
+            if (window.versionString) {
+                const subtitle = document.getElementById('platform-subtitle');
+                if (subtitle) {
+                    subtitle.textContent += ' ' + window.versionString;
+                }
+                const studyTitle = document.getElementById('study-title');
+                if (studyTitle) {
+                    studyTitle.innerHTML += ' - ' + window.versionString;
+                }
+            }
+        });
+        
+        function trackDomainSelection(domain) {
+            console.log(`User selected domain: ${domain}`);
+            // Add analytics tracking here if needed
+        }
+        
+        // Add hover effects only for non-touch devices
+        if (!('ontouchstart' in window)) {
+            document.querySelectorAll('.domain-card').forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-8px)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+        }
+        
+        // Add click feedback for all devices
+        document.querySelectorAll('.domain-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                // Brief click animation
+                this.style.opacity = '0.8';
+                setTimeout(() => {
+                    this.style.opacity = '';
+                }, 100);
+            });
+        });
+    </script>
+</body>
+</html>

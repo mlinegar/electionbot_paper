@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Complete, Please Continue the Survey!</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .message {
+            text-align: center;
+            padding: 20px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        p {
+            color: #666;
+        }
+        .return-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            /* background-color: #007bff; */
+            background-color: #4a5878;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .return-link:hover {
+            /* background-color: #0056b3; */
+            background-color: #33415c;
+        }
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h1>Chat Complete, Please Continue the Survey!</h1>
+        <p>Thank you for chatting with our chatbot Brook. Your responses have been recorded. 
+
+            Please click the button below to continue the survey.
+        </p>
+        <a id="returnLink" class="return-link" href="#">Continue Survey</a>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var visa = urlParams.get('visa');
+
+            var returnLink = document.getElementById('returnLink');
+            if (visa) {
+                // https://survey-api.yougov.com/ereturn/<visa>
+                // returnLink.href = 'https://testsite.com/?visa=' + visa;
+                returnLink.href = 'https://survey-api.yougov.com/ereturn/' + visa;
+            } else {
+                returnLink.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

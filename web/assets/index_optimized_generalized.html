@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Generalized Misinformation Inoculation</title>
+    <link rel="stylesheet" href="chat_assets/index.css?v=vaccine-fix-2025">
+    <script>
+    let userMessageCount = 0;
+    let ws;
+    let currentDomain = 'elections'; // Will be updated in window.onload
+    let optimizationStatus = {
+        cleaner: { status: 'not_optimized', accuracy: null },
+        analyzer: { status: 'not_optimized', accuracy: null },
+        interviewer: { status: 'not_optimized', accuracy: null },
+        reprompt: { status: 'not_optimized', accuracy: null }
+    };
+    
+    // Session resumption variables
+    let sessionInfo = null;
+    let hasActiveSession = false;
+    
+    // DEBUG: Skip localStorage caching when using deterministic sessions
+    const DEBUG_DETERMINISTIC_SESSIONS = false;
+    
+    // Debug tracking variables
+    let localDebugInfo = {
+        connectionState: 'Initializing',
+        messagesSent: 0,
+        messagesReceived: 0,
+        lastError: null,
+        connectionAttempts: 0,
+        lastMessageTime: null,
+        websocketUrl: null
+    };
+    
+    // Generate UUID v4 on frontend
+    function generateSessionId() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+    
+    const domainConfig = {
+        elections: {
+            icon: '🗳️',
+            name: 'Election Integrity',
+            color: '#007bff'
+        },
+        vaccines: {
+            icon: '💉', 
+            name: 'Vaccine Science',
+            color: '#28a745'
+        },
+        ai: {
+            icon: '🤖',
+            name: 'AI Capabilities',
+            color: '#6f42c1'
+        },
+        environment: {
+            icon: '🌍',
+            name: 'Climate & Environment',
+            color: '#17a2b8'
+        }
+    };
+
+    function focusTextInput() {
+        const textInput = document.querySelector('.input textarea');
+        if (textInput) {
+            textInput.focus();
+        }
+    }
+
+    function updateStopButton() {
+        const stopButton = document.getElementById('stop-chat');
+        if (stopButton) {  // Check if element exists
+            if (userMessageCount >= 3) {
+                stopButton.classList.remove('disabled');
+            } else {
+                stopButton.classList.add('disabled');
+            }
+            console.log(`Stop button state updated. Message count: ${userMessageCount}`);
+        }
+    }
+
+    function handleStopChat() {
+        console.log(`Handling stop chat. User message count: ${userMessageCount}`);
+        if (userMessageCount >= 3) {
+            const confirmStop = confirm("This will end your chat session. This action cannot be undone. Are you sure?");
+            if (confirmStop) {
+                stopChat();
+            }
+            // If user clicks 'Cancel', nothing happens and the chat continues
+        } else {
+            alert("Please send at least 3 messages before stopping the chat.");
+        }
+    }
+
+    function stopChat() {
+        console.log('Stopping chat');
+        // Close the WebSocket connection
+        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+            window.ws.close();
+        }
+        
+        // Extract only the user ID from the full visa
+        let fullVisa = new URLSearchParams(window.location.search).get('visa') || '';
+        let userId = fullVisa.split(',')[0] || '';
+        window.location.href = `chat_assets/survey-complete.html?visa=${userId}`;
+    }
+
+    // Add this function to set the visa when the WebSocket connection is established
+    function setVisa(visa) {
+        window.chatVisa = visa;
+    }
+
+    // Function to increment message count
+    function incrementMessageCount() {
+        userMessageCount++;
+        console.log(`User message count: ${userMessageCount}`);
+        updateStopButton();
+    }
+
+    // Function to go home
+    function goHome() {
+        const confirmHome = confirm("This will end your chat session and return to the home page. Are you sure?");
+        if (confirmHome) {
+            // Close WebSocket if open
+            if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+                window.ws.close();
+            }
+            window.location.href = '/';
+        }
+    }
+
+    // Create and show optimization status badge
+    function createOptimizationStatusBadge() {
+        // Remove any existing badge
+        const existingBadge = document.getElementById('optimization-status-badge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+        
+        // Use server-injected optimization status if available
+        const serverStatus = window.optimizationStatus;
+        if (!serverStatus) {
+            console.log('No optimization status available from server');
+            return;
+        }
+        
+        const optimizedCount = serverStatus.optimized_agents || 0;
+        const totalAgents = serverStatus.total_agents || 4;
+        
+        let statusText, badgeColor, icon;
+        if (optimizedCount > 0) {
+            statusText = `DSPy Optimized (${optimizedCount}/${totalAgents} agents)`;
+            badgeColor = '#28a745'; // Green
+            icon = '🚀';
+        } else {
+            statusText = `Base Agents (${totalAgents}/${totalAgents} agents)`;
+            badgeColor = '#6c757d'; // Gray  
+            icon = '📋';
+        }
+        
+        // Create the badge element
+        const badge = document.createElement('div');
+        badge.id = 'optimization-status-badge';
+        badge.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: ${badgeColor};
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        `;
+        badge.innerHTML = `${icon} ${statusText}`;
+        
+        // Add mouseover functionality
+        badge.title = 'Click for detailed optimization status';
+        badge.addEventListener('click', showOptimizationDetails);
+        badge.addEventListener('mouseover', function() {
+            this.style.transform = 'scale(1.05)';
+            this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+        });
+        badge.addEventListener('mouseout', function() {
+            this.style.transform = 'scale(1)';
+            this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+        });
+        
+        document.body.appendChild(badge);
+    }
+    
+    // Update optimization status (called when new status is received via WebSocket)
+    function updateOptimizationStatus() {
+        // Simply recreate the badge with updated data
+        // Removed DSPy optimization badge as requested
+        // createOptimizationStatusBadge();
+    }
+    
+    // Show detailed optimization status
+    function showOptimizationDetails() {
+        const serverStatus = window.optimizationStatus;
+        if (!serverStatus) {
+            alert('Optimization status not available');
+            return;
+        }
+        
+        let details = `DSPy Optimization Status\n\n`;
+        details += `Optimized Agents: ${serverStatus.optimized_agents}/${serverStatus.total_agents}\n`;
+        details += `Status: ${serverStatus.status === 'optimized' ? 'Optimized' : 'Base Models'}\n`;
+        details += `Models Available: ${serverStatus.models_available}\n\n`;
+        
+        // Add test metrics if available
+        if (serverStatus.test_metrics && serverStatus.test_metrics.optimization_status && serverStatus.test_metrics.optimization_status.test_results) {
+            const testResults = serverStatus.test_metrics.optimization_status.test_results;
+            details += `Test Results (${testResults.total_examples} examples):\n`;
+            details += `Base Model Average: ${(testResults.base_accuracy * 100).toFixed(1)}%\n`;
+            details += `Optimized Average: ${(testResults.optimized_accuracy * 100).toFixed(1)}%\n`;
+            details += `Improvement: ${(testResults.improvement * 100).toFixed(1)}%\n\n`;
+            
+            details += `Individual Agent Performance:\n`;
+            if (testResults.agents) {
+                for (const [agent, data] of Object.entries(testResults.agents)) {
+                    details += `• ${agent.charAt(0).toUpperCase() + agent.slice(1)}: ${(data.accuracy * 100).toFixed(1)}% (${(data.improvement * 100).toFixed(1)}%)\n`;
+                }
+            }
+            details += `\nLast tested: ${new Date(serverStatus.test_metrics.optimization_status.last_tested).toLocaleString()}\n`;
+        } else if (serverStatus.optimized_agents > 0) {
+            details += 'Benefits:\n';
+            details += '• Improved question recognition\n';
+            details += '• Enhanced conversation flow\n';
+            details += '• Better content personalization\n';
+        } else {
+            details += 'Using reliable base agents\n';
+        }
+        
+        alert(details);
+    }
+
+    // Update UI based on current domain
+    function updateDomainUI() {
+        const domain = domainConfig[currentDomain];
+        if (domain) {
+            // Update page title
+            const pageTitle = document.getElementById('page-title');
+            if (pageTitle) {
+                pageTitle.textContent = `${domain.name} - Misinformation Inoculation`;
+            }
+            
+            // Update main title with domain and version
+            const mainTitle = document.getElementById('main-title');
+            if (mainTitle) {
+                mainTitle.innerHTML = `${domain.icon} ${domain.name}`;
+                // Add version if available
+                if (window.versionString) {
+                    mainTitle.innerHTML += ' ' + window.versionString;
+                }
+            }
+            
+            // Update document title
+            document.title = `${domain.name} - Misinformation Inoculation`;
+        }
+    }
+    
+    // Domain UI update function - called from main window.onload
+    function addMessage(message, type, id = null) {
+        if (message.trim() === '') {
+            return;
+        }
+
+        const chat = document.querySelector('.chat');
+
+        let wasThinking = isThinking;
+        setThinking(false)
+
+        // Check if message already exists, then update it
+        if (id && document.querySelector(`.message#${id}`)) {
+            let existingMessage = document.querySelector(`.message#${id}`)
+            // Content 
+            let content = existingMessage.querySelector('.message-content');
+            // Check if scrolled to bottom
+            let isScrolledToBottom = chat.scrollHeight - chat.clientHeight <= chat.scrollTop + 1;
+
+            content.innerHTML += message;
+
+            if (isScrolledToBottom) {
+                chat.scrollTop = chat.scrollHeight;
+            }
+            return;
+        }
+
+        const messageElement = document.createElement('div');
+        messageElement.classList.add('message');
+        messageElement.classList.add(type);
+        messageElement.id = id;
+        const messageContent = document.createElement('div');
+        messageContent.classList.add('message-content');
+        messageContent.innerText = message;
+        messageElement.appendChild(messageContent);
+        chat.appendChild(messageElement);
+        chat.scrollTop = chat.scrollHeight;
+        if (wasThinking) {
+            setThinking(wasThinking);
+        }
+    }
+
+    function clickSend() {
+        const input = document.querySelector('.input textarea');
+        event.preventDefault();
+        sendMessage();
+    }
+
+    function chatKeyDown() {
+        const input = document.querySelector('.input textarea');
+        if (event.keyCode === 13 && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    }
+
+    let isThinking = false;
+
+    function setThinking(state) {
+        if (!isThinking && state) {
+            isThinking = true;
+            addThinking();
+        } else if (isThinking && !state) {
+            isThinking = false;
+            removeThinking();
+        }
+    }
+
+    function addThinking() {
+        const chat = document.querySelector('.chat');
+        const thinking = document.createElement('div');
+        thinking.classList.add('thinking');
+        for (let i = 0; i < 3; i++) {
+            const bubble = document.createElement('div');
+            bubble.classList.add('bubble');
+            thinking.appendChild(bubble);
+        }
+        chat.appendChild(thinking);
+    }
+
+    function removeThinking() {
+        const chat = document.querySelector('.chat');
+        const thinking = document.querySelector('.thinking');
+        if (thinking && chat.contains(thinking)) {
+            chat.removeChild(thinking);
+        }
+    }
+
+    function sendMessage() {
+        if (isThinking) {
+            return;
+        }
+        const input = document.querySelector('.input textarea');
+        if (input.value.trim() === '') {
+            return;
+        }
+        const message = input.value;
+        input.value = '';
+        addMessage(message, 'user');
+        setThinking(true);
+        document.querySelector('.input textarea').disabled = true;
+        send(message);
+        // Increment message count and update stop button
+        userMessageCount++;
+        console.log(`User message count: ${userMessageCount}`);
+        updateStopButton();
+    }
+
+    let messageId = 0;
+    let websocket = null;
+
+    window.onload = async function() {
+        // Update currentDomain from injected variable FIRST
+        currentDomain = window.chatDomain || 'elections';
+        console.log('🔍 DEBUG: Current domain set to:', currentDomain);
+        
+        // Update version in title if available
+        if (window.versionString) {
+            const mainTitle = document.getElementById('main-title');
+            if (mainTitle && !mainTitle.innerHTML.includes(window.versionString)) {
+                // Don't overwrite domain name if already set
+                if (!mainTitle.innerHTML.includes('🗳️') && !mainTitle.innerHTML.includes('💉') && 
+                    !mainTitle.innerHTML.includes('🤖') && !mainTitle.innerHTML.includes('🌍')) {
+                    mainTitle.innerHTML += ' ' + window.versionString;
+                }
+            }
+        }
+        
+        // Update UI based on domain
+        updateDomainUI();
+        updateStopButton();
+        // Removed DSPy optimization badge as requested
+        // createOptimizationStatusBadge();
+        
+        // Generate session ID on frontend if not provided
+        ensureSessionId();
+        
+        // Display preloaded initial message immediately if available
+        if (window.preloadedInitialMessage) {
+            console.log('🚀 Displaying preloaded initial message');
+            addMessage(window.preloadedInitialMessage, 'assistant', 'initial-message');
+            document.querySelector('.input textarea').disabled = false;
+            focusTextInput();
+        } else {
+            // Fallback to showing thinking indicator
+            setThinking(true);
+        }
+        
+        // Check if user wants to resume a cached session (only show banner, don't auto-connect)
+        await checkForCachedSessions();
+        
+        // Always start normal connection (backend will handle session resumption if session_id provided)
+        document.getElementById('connection-status').innerText = 'Connecting...';
+        connectNormally();
+    }
+    
+    function ensureSessionId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        let sessionId = urlParams.get('session_id');
+        const visa = urlParams.get('visa');
+        
+        console.log('🆔 SESSION ID GENERATION: Ensuring session ID exists');
+        console.log('  - Current session_id from URL:', sessionId);
+        console.log('  - Visa parameter:', visa);
+        
+        // If no session_id in URL, generate or retrieve one
+        if (!sessionId) {
+            // For users with visa, use visa-based caching
+            if (visa) {
+                const cacheKey = `session_${currentDomain}_${visa}`;
+                const cachedSessionId = localStorage.getItem(cacheKey);
+                
+                if (cachedSessionId) {
+                    console.log('  - Found cached session ID for visa:', cachedSessionId);
+                    sessionId = cachedSessionId;
+                } else {
+                    console.log('  - No cached session for visa, generating new session ID');
+                    sessionId = generateSessionId();
+                    console.log('  - Generated session ID:', sessionId);
+                }
+            } else {
+                // For users without visa, use domain-only caching
+                const genericCacheKey = `session_${currentDomain}_anonymous`;
+                const cachedSessionId = localStorage.getItem(genericCacheKey);
+                
+                if (cachedSessionId) {
+                    console.log('  - Found cached anonymous session ID:', cachedSessionId);
+                    sessionId = cachedSessionId;
+                } else {
+                    console.log('  - No cached anonymous session, generating new session ID');
+                    sessionId = generateSessionId();
+                    console.log('  - Generated session ID:', sessionId);
+                    // Cache it for anonymous users
+                    localStorage.setItem(genericCacheKey, sessionId);
+                    console.log('  - Cached anonymous session ID');
+                }
+            }
+            
+            // Add session_id to URL without reloading page
+            urlParams.set('session_id', sessionId);
+            const newUrl = window.location.pathname + '?' + urlParams.toString();
+            window.history.replaceState({}, '', newUrl);
+            console.log('  - Updated URL with session ID:', newUrl);
+        }
+        
+        console.log('  - Final session ID:', sessionId);
+        return sessionId;
+    }
+    
+    function connectNormally() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const visa = urlParams.get('visa');
+        const sessionId = urlParams.get('session_id');
+        const domain = urlParams.get('domain');
+
+        host = window.location.host;
+        let wsUrl = "wss://" + host + "/optimizedchat";  // Use the optimized WebSocket endpoint
+        
+        // Add parameters to WebSocket URL
+        const wsParams = new URLSearchParams();
+        if (visa) {
+            wsParams.append('visa', visa);
+        }
+        // Use domain from URL if present, otherwise use currentDomain
+        const domainToUse = domain || currentDomain;
+        if (domainToUse) {
+            wsParams.append('domain', domainToUse);
+        }
+        if (sessionId) {
+            wsParams.append('session_id', sessionId);
+            console.log(`🔄 Connecting with session resumption: ${sessionId}`);
+        }
+        
+        // Check for user context codes in URL
+        const userContextCodes = urlParams.get('ctx');
+        if (userContextCodes) {
+            wsParams.append('ctx', userContextCodes);
+            console.log(`📋 User context codes: ${userContextCodes}`);
+        }
+        
+        if (wsParams.toString()) {
+            wsUrl += `?${wsParams.toString()}`;
+        }
+
+        websocket = new WebSocket(wsUrl);
+        document.getElementById('address').innerText = websocket.url;
+        
+        // Update debug tracking
+        localDebugInfo.websocketUrl = wsUrl;
+        localDebugInfo.connectionAttempts++;
+        localDebugInfo.connectionState = 'Connecting';
+
+        websocket.onmessage = function(event) {
+            const message = JSON.parse(event.data);
+            console.log('📨 Received message:', message.type, typeof message.data === 'string' ? message.data.substring(0, 50) + '...' : typeof message.data);
+            
+            // Update debug tracking
+            localDebugInfo.messagesReceived++;
+            localDebugInfo.lastMessageTime = new Date().toISOString();
+            
+            if (message.type === 'response') {
+                console.log('📄 Adding response message to chat');
+                addMessage(message.data, 'assistant', "response-" + message.message_id);
+                if (message.complete) {
+                    document.querySelector('.input textarea').disabled = false;
+                    setThinking(false);
+                    console.log('✅ Response complete, chat ready for input');
+                    focusTextInput();
+                }
+                if (message.end_script) {
+                    if (message.redirect_url) {
+                        window.location.href = message.redirect_url;
+                    } else {
+                        window.location.href = 'chat_assets/survey-complete.html';
+                    }
+                }
+            }
+            // Handle optimization status updates
+            if (message.type === 'optimization_status') {
+                optimizationStatus = message.data;
+                updateOptimizationStatus();
+            }
+            // Handle debug info responses
+            if (message.type === 'debug_info') {
+                displayDebugInfo(message.data);
+            }
+            // Handle session info updates
+            if (message.type === 'session_info') {
+                sessionInfo = message.data;
+                updateSessionUI();
+                
+                // Cache session ID for future use - with detailed debugging
+                const urlParams = new URLSearchParams(window.location.search);
+                const visa = urlParams.get('visa');
+                const sessionIdFromUrl = urlParams.get('session_id');
+                
+                console.log('🔍 SESSION DEBUG: Received session_info');
+                console.log('  - Session ID from server:', sessionInfo.session_id);
+                console.log('  - Session ID from URL:', sessionIdFromUrl);
+                console.log('  - Is restored session:', sessionInfo.is_restored);
+                console.log('  - Current domain:', currentDomain);
+                console.log('  - Visa parameter:', visa);
+                
+                // Cache the session ID (with or without visa)
+                if (sessionInfo.session_id) {
+                    let cacheKey;
+                    if (visa) {
+                        cacheKey = `session_${currentDomain}_${visa}`;
+                    } else {
+                        // For anonymous users, use a generic cache key
+                        cacheKey = `session_${currentDomain}_anonymous`;
+                    }
+                    
+                    const existingCached = localStorage.getItem(cacheKey);
+                    
+                    console.log('  - Cache key:', cacheKey);
+                    console.log('  - Existing cached session:', existingCached);
+                    
+                    // Only update cache if the session ID is different (prevents unnecessary writes)
+                    if (existingCached !== sessionInfo.session_id) {
+                        localStorage.setItem(cacheKey, sessionInfo.session_id);
+                        console.log('  - Updated cached session ID:', sessionInfo.session_id);
+                    } else {
+                        console.log('  - Session ID already cached, no update needed');
+                    }
+                    
+                    const nowCached = localStorage.getItem(cacheKey);
+                    console.log('  - Verified cached session:', nowCached);
+                    console.log('  - Cache operation successful:', nowCached === sessionInfo.session_id);
+                } else {
+                    console.log('  - NOT caching session (missing session_id)');
+                }
+            }
+            // Handle conversation history replay
+            if (message.type === 'conversation_history') {
+                displayConversationHistory(message.data);
+            }
+        }
+
+        websocket.onopen = function(event) {
+            document.getElementById('connection-status').innerText = 'Connected';
+            localDebugInfo.connectionState = 'Connected';
+            
+            let visa = new URLSearchParams(window.location.search).get('visa');
+            let sessionId = new URLSearchParams(window.location.search).get('session_id');
+            
+            console.log('🔍 CONNECTION DEBUG: WebSocket opened');
+            console.log('  - WebSocket URL:', websocket.url);
+            console.log('  - Visa parameter:', visa);
+            console.log('  - Session ID parameter:', sessionId);
+            console.log('  - Current domain:', currentDomain);
+            
+            if (visa) {
+                setVisa(visa);
+            }
+            
+            // Check if we already displayed the initial message
+            const messageType = window.preloadedInitialMessage ? 'ready' : 'init';
+            const initMessage = {
+                type: messageType,
+                visa: visa
+            };
+            
+            console.log(`  - Sending ${messageType} message:`, initMessage);
+            websocket.send(JSON.stringify(initMessage));
+            
+            // Update debug tracking
+            localDebugInfo.messagesSent++;
+            
+            // Keep thinking indicator until we get the initial response (only if we sent 'init')
+            if (messageType === 'init') {
+                // Keep thinking indicator for init
+            } else {
+                // We already have the message displayed, no thinking needed
+                setThinking(false);
+            }
+            console.log('  - Init message sent, waiting for initial response...');
+        }
+
+        websocket.onclose = function(event) {
+            document.getElementById('connection-status').innerText = 'Disconnected';
+            localDebugInfo.connectionState = 'Disconnected';
+            localDebugInfo.lastError = `Connection closed: Code ${event.code}, Reason: ${event.reason || 'Unknown'}`;
+            console.log('WebSocket closed:', event);
+        }
+        
+        websocket.onerror = function(event) {
+            console.error('WebSocket error:', event);
+            localDebugInfo.lastError = `WebSocket error occurred at ${new Date().toISOString()}`;
+            localDebugInfo.connectionState = 'Error';
+        }
+
+        // document.querySelector('.input textarea').focus();
+        focusTextInput();
+    }
+
+    function send(question) {
+        setThinking(true);
+        let id = messageId++;
+
+        websocket.send(JSON.stringify({
+            type: 'input',
+            text: question
+        }));
+        
+        // Update debug tracking
+        localDebugInfo.messagesSent++;
+    }
+
+    // Debug functionality
+    let debugVisible = false;
+
+    function toggleDebug() {
+        const debugPanel = document.getElementById('debug-panel');
+        const debugButton = document.getElementById('debug-button');
+        if (debugVisible) {
+            debugPanel.style.display = 'none';
+            debugVisible = false;
+            debugButton.innerText = '🐛 Debug';
+            debugButton.classList.remove('debug-active');
+        } else {
+            debugPanel.style.display = 'block';
+            debugVisible = true;
+            debugButton.innerText = '🐛 Hide Debug';
+            debugButton.classList.add('debug-active');
+            // Show local debug info immediately
+            displayLocalDebugInfo();
+            // Also try to get server debug info if connected
+            requestDebugInfo();
+        }
+    }
+
+    function requestDebugInfo() {
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            websocket.send(JSON.stringify({
+                type: 'debug_request'
+            }));
+            localDebugInfo.messagesSent++;
+        } else {
+            console.log('Cannot request debug info - WebSocket not connected');
+        }
+    }
+    
+    function displayLocalDebugInfo() {
+        const debugContent = document.getElementById('debug-content');
+        const urlParams = new URLSearchParams(window.location.search);
+        const visa = urlParams.get('visa');
+        
+        debugContent.innerHTML = `
+            <div class="debug-section">
+                <h3>🔌 Connection Status</h3>
+                <div class="debug-item">
+                    <strong>State:</strong> <span class="status-${localDebugInfo.connectionState.toLowerCase()}">${localDebugInfo.connectionState}</span>
+                </div>
+                <div class="debug-item">
+                    <strong>URL:</strong> <code>${localDebugInfo.websocketUrl || 'Not set'}</code>
+                </div>
+                <div class="debug-item">
+                    <strong>Connection Attempts:</strong> ${localDebugInfo.connectionAttempts}
+                </div>
+                <div class="debug-item">
+                    <strong>Messages Sent:</strong> ${localDebugInfo.messagesSent}
+                </div>
+                <div class="debug-item">
+                    <strong>Messages Received:</strong> ${localDebugInfo.messagesReceived}
+                </div>
+                <div class="debug-item">
+                    <strong>Last Activity:</strong> ${localDebugInfo.lastMessageTime || 'None'}
+                </div>
+                ${localDebugInfo.lastError ? `
+                <div class="debug-item error">
+                    <strong>Last Error:</strong> ${localDebugInfo.lastError}
+                </div>
+                ` : ''}
+            </div>
+            
+            <div class="debug-section">
+                <h3>🎯 Local State</h3>
+                <div class="debug-item">
+                    <strong>Domain:</strong> ${currentDomain}
+                </div>
+                <div class="debug-item">
+                    <strong>Visa:</strong> ${visa || 'Not provided'}
+                </div>
+                <div class="debug-item">
+                    <strong>User Message Count:</strong> ${userMessageCount}
+                </div>
+                <div class="debug-item">
+                    <strong>Session ID:</strong> ${sessionInfo?.session_id || 'Not available'}
+                </div>
+                <div class="debug-item">
+                    <strong>Session Restored:</strong> ${sessionInfo?.is_restored ? 'Yes' : 'No'}
+                </div>
+                <div class="debug-item">
+                    <button onclick="startFreshSession()" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-top: 5px;">
+                        🔄 Start Fresh Session
+                    </button>
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <h3>🚀 Optimization Status</h3>
+                ${Object.entries(optimizationStatus).map(([agent, status]) => `
+                    <div class="debug-item">
+                        <strong>${agent}:</strong> ${status.status} ${status.accuracy !== null ? `(${(status.accuracy * 100).toFixed(1)}%)` : ''}
+                    </div>
+                `).join('')}
+            </div>
+            
+            <div class="debug-section">
+                <h3>📊 Browser Info</h3>
+                <div class="debug-item">
+                    <strong>User Agent:</strong> ${navigator.userAgent.substring(0, 50)}...
+                </div>
+                <div class="debug-item">
+                    <strong>Page Load Time:</strong> ${new Date().toISOString()}
+                </div>
+            </div>
+            
+            ${localDebugInfo.connectionState !== 'Connected' ? `
+            <div class="debug-section">
+                <h3>⚠️ Connection Issues</h3>
+                <p>WebSocket is not connected. Server debug info unavailable.</p>
+                <button onclick="attemptReconnect()" style="background: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                    🔄 Try Reconnect
+                </button>
+            </div>
+            ` : `
+            <div class="debug-section">
+                <h3>🔄 Server Info</h3>
+                <p>Requesting server debug information...</p>
+            </div>
+            `}
+        `;
+    }
+
+    function attemptReconnect() {
+        console.log('Attempting to reconnect...');
+        // Reload the page to restart the connection
+        window.location.reload();
+    }
+
+    function displayDebugInfo(debugData) {
+        // Merge server debug info with local debug info
+        const debugContent = document.getElementById('debug-content');
+        const urlParams = new URLSearchParams(window.location.search);
+        const visa = urlParams.get('visa');
+        
+        debugContent.innerHTML = `
+            <div class="debug-section">
+                <h3>🔌 Connection Status</h3>
+                <div class="debug-item">
+                    <strong>State:</strong> <span class="status-${localDebugInfo.connectionState.toLowerCase()}">${localDebugInfo.connectionState}</span>
+                </div>
+                <div class="debug-item">
+                    <strong>URL:</strong> <code>${localDebugInfo.websocketUrl || 'Not set'}</code>
+                </div>
+                <div class="debug-item">
+                    <strong>Connection Attempts:</strong> ${localDebugInfo.connectionAttempts}
+                </div>
+                <div class="debug-item">
+                    <strong>Messages Sent:</strong> ${localDebugInfo.messagesSent}
+                </div>
+                <div class="debug-item">
+                    <strong>Messages Received:</strong> ${localDebugInfo.messagesReceived}
+                </div>
+                <div class="debug-item">
+                    <strong>Last Activity:</strong> ${localDebugInfo.lastMessageTime || 'None'}
+                </div>
+                ${localDebugInfo.lastError ? `
+                <div class="debug-item error">
+                    <strong>Last Error:</strong> ${localDebugInfo.lastError}
+                </div>
+                ` : ''}
+            </div>
+            
+            <div class="debug-section">
+                <h3>🎯 Server State</h3>
+                <div class="debug-item">
+                    <strong>Session ID:</strong> ${debugData.session_id || 'N/A'}
+                </div>
+                <div class="debug-item">
+                    <strong>Current Question:</strong> 
+                    <span class="question-id">${debugData.current_question_id || 'Initializing...'}</span>
+                </div>
+                <div class="debug-item">
+                    <strong>Reprompt Count:</strong> ${debugData.reprompt_count}
+                </div>
+                <div class="debug-item">
+                    <strong>Finished:</strong> ${debugData.is_finished ? 'Yes' : 'No'}
+                </div>
+                <div class="debug-item">
+                    <strong>Latest Input:</strong> ${debugData.latest_user_input || 'None'}
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <h3>🧪 Experimental Conditions</h3>
+                ${Object.entries(debugData.experimental_conditions || {}).map(([key, value]) => `
+                    <div class="debug-item">
+                        <strong>${key}:</strong> ${value}
+                    </div>
+                `).join('')}
+            </div>
+            
+            <div class="debug-section">
+                <h3>🚀 Optimization Status</h3>
+                ${Object.entries(debugData.optimization_status || optimizationStatus).map(([agent, status]) => `
+                    <div class="debug-item">
+                        <strong>${agent}:</strong> ${status.status} ${status.accuracy !== null ? `(${(status.accuracy * 100).toFixed(1)}%)` : ''}
+                    </div>
+                `).join('')}
+            </div>
+            
+            <div class="debug-section">
+                <h3>📝 Content Keys</h3>
+                <div class="debug-item">
+                    <strong>Available:</strong> ${debugData.retrieval_context_keys ? debugData.retrieval_context_keys.join(', ') : 'None'}
+                </div>
+            </div>
+            
+            <div class="debug-section">
+                <h3>🔄 Recent Routing</h3>
+                ${debugData.routing_decisions ? debugData.routing_decisions.slice(-3).map(decision => `
+                    <div class="debug-item">
+                        <strong>${decision.timestamp?.substring(11, 19) || 'Unknown time'}:</strong> ${decision.routing_reason || 'Unknown'}<br>
+                        <small>Input: "${decision.user_input?.substring(0, 30) || 'None'}..."</small>
+                    </div>
+                `).join('') : '<div class="debug-item">No routing decisions available</div>'}
+            </div>
+            
+            <div class="debug-section">
+                <h3>🤖 Agent Traces (Last 5)</h3>
+                ${debugData.agent_traces ? debugData.agent_traces.slice(-5).map(trace => `
+                    <div class="debug-item" style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+                        <div style="background: #f0f0f0; padding: 5px; margin: -10px -10px 10px -10px; border-radius: 5px 5px 0 0;">
+                            <strong>${trace.agent?.toUpperCase() || trace.type?.toUpperCase() || 'UNKNOWN'}</strong> 
+                            <span style="float: right; font-size: 0.9em;">Turn ${trace.turn || '?'}</span>
+                        </div>
+                        
+                        ${trace.inputs ? `
+                            <div style="margin-bottom: 8px;">
+                                <strong style="color: #2196F3;">📥 Inputs:</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 0.9em;">
+                                    ${Object.entries(trace.inputs).map(([key, value]) => {
+                                        if (typeof value === 'object' && value !== null) {
+                                            return `<li><strong>${key}:</strong> ${JSON.stringify(value, null, 2).substring(0, 200)}${JSON.stringify(value).length > 200 ? '...' : ''}</li>`;
+                                        }
+                                        return `<li><strong>${key}:</strong> ${String(value).substring(0, 100)}${String(value).length > 100 ? '...' : ''}</li>`;
+                                    }).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        
+                        ${trace.outputs ? `
+                            <div style="margin-bottom: 8px;">
+                                <strong style="color: #4CAF50;">📤 Outputs:</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 0.9em;">
+                                    ${Object.entries(trace.outputs).map(([key, value]) => {
+                                        if (typeof value === 'object' && value !== null) {
+                                            return `<li><strong>${key}:</strong> ${JSON.stringify(value, null, 2).substring(0, 200)}${JSON.stringify(value).length > 200 ? '...' : ''}</li>`;
+                                        }
+                                        return `<li><strong>${key}:</strong> ${String(value).substring(0, 100)}${String(value).length > 100 ? '...' : ''}</li>`;
+                                    }).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        
+                        ${trace.context ? `
+                            <div>
+                                <strong style="color: #FF9800;">🔍 Context:</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 0.9em;">
+                                    ${Object.entries(trace.context).map(([key, value]) => 
+                                        `<li><strong>${key}:</strong> ${value}</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        
+                        ${trace.reasoning ? `
+                            <div style="margin-top: 8px;">
+                                <strong style="color: #9C27B0;">💭 Reasoning:</strong>
+                                <div style="font-size: 0.9em; padding: 5px; background: #f5f5f5; border-radius: 3px;">
+                                    ${JSON.stringify(trace.reasoning, null, 2)}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('') : '<div class="debug-item">No agent traces available</div>'}
+            </div>
+        `;
+    }
+
+    function addResponse(s, role, id = null) {
+        document.querySelector('.input textarea').disabled = false;
+        addMessage(s, role, id);
+        document.querySelector('.input textarea').focus();
+    }
+    
+    let isReportOpen = false;
+
+    function reportProblem() {
+        console.log("reportProblem function called");
+        console.log("isReportOpen:", isReportOpen);
+
+        if (isReportOpen) {
+            console.log("Attempting to close existing popup");
+            const popup = document.querySelector('.popup');
+            if (popup) {
+                document.body.removeChild(popup);
+                isReportOpen = false;
+                console.log("Existing popup closed");
+            } else {
+                console.log("No existing popup found");
+            }
+        } else {
+            console.log("Creating new popup");
+            const popup = document.createElement('div');
+            popup.classList.add('popup');
+            popup.style.display = 'block'; // Ensure the popup is visible
+            popup.style.position = 'fixed';
+            popup.style.left = '50%';
+            popup.style.top = '50%';
+            popup.style.transform = 'translate(-50%, -50%)';
+            popup.style.backgroundColor = 'white';
+            popup.style.padding = '20px';
+            popup.style.border = '1px solid black';
+            popup.style.zIndex = '1000';
+            
+            popup.innerHTML = `
+                <textarea id="problem-description" placeholder="Describe the problem..." style="width: 100%; height: 100px;"></textarea>
+                <button id="save-problem">Save</button>
+                <button id="cancel-problem">Cancel</button>
+            `;
+            document.body.appendChild(popup);
+            isReportOpen = true;
+            console.log("New popup created and appended to body");
+
+            document.getElementById('save-problem').onclick = function() {
+                console.log("Save button clicked");
+                const description = document.getElementById('problem-description').value;
+
+                fetch(`https://${window.location.host}/submit-problem`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ description: description })
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert('Problem report submitted successfully');
+                        console.log('Problem report submitted successfully');
+                    } else {
+                        alert('Failed to submit problem report');
+                        console.error('Failed to submit problem report');
+                        console.error('Response status:', response.status);
+                        console.error('Response text:', response.statusText);
+                    }
+                    document.body.removeChild(popup);
+                    isReportOpen = false;
+                    console.log("Popup closed after submission attempt");
+                })
+                .catch(error => {
+                    alert('Error submitting problem report');
+                    console.error('Error submitting problem report:', error);
+                    document.body.removeChild(popup);
+                    isReportOpen = false;
+                    console.log("Popup closed after submission error");
+                });
+            };
+
+            document.getElementById('cancel-problem').onclick = function() {
+                console.log("Cancel button clicked");
+                document.body.removeChild(popup);
+                isReportOpen = false;
+                console.log("Popup closed by cancel button");
+            };
+        }
+    }
+
+    // ===== SESSION RESUMPTION FUNCTIONS =====
+    
+    async function checkForCachedSessions() {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const visa = urlParams.get('visa');
+            
+            console.log('🔍 CACHE DEBUG: checkForCachedSessions called');
+            console.log('  - Current domain:', currentDomain);
+            console.log('  - Visa parameter:', visa);
+            console.log('  - DEBUG_DETERMINISTIC_SESSIONS:', DEBUG_DETERMINISTIC_SESSIONS);
+            
+            // Don't show banner if user explicitly provided a session_id
+            const sessionId = urlParams.get('session_id');
+            if (sessionId) {
+                console.log('  - Session ID provided in URL, skipping cached session check:', sessionId);
+                return;
+            }
+            
+            // For anonymous users (no visa), use generic cache key
+            const cacheKey = visa ? `session_${currentDomain}_${visa}` : `session_${currentDomain}_anonymous`;
+            
+            // DEBUG: Skip localStorage caching when using deterministic sessions
+            if (DEBUG_DETERMINISTIC_SESSIONS) {
+                console.log('  - Deterministic sessions enabled, skipping localStorage caching');
+                return;
+            }
+            
+            console.log('  - Cache key:', cacheKey);
+            
+            // Check what's actually in localStorage
+            console.log('  - All localStorage items:');
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                console.log(`    [${key}] = ${value}`);
+            }
+            
+            const cachedSessionId = localStorage.getItem(cacheKey);
+            console.log('  - Cached session ID:', cachedSessionId);
+            
+            if (cachedSessionId) {
+                console.log(`  - Found cached session: ${cachedSessionId}`);
+                
+                // Check if current URL already has this session_id
+                const currentSessionId = urlParams.get('session_id');
+                if (currentSessionId === cachedSessionId) {
+                    console.log('  - Current URL already has the cached session ID, no action needed');
+                    return;
+                }
+                
+                console.log('  - Attempting to validate cached session...');
+                try {
+                    const response = await fetch(`/api/sessions/${cachedSessionId}`);
+                    console.log('  - Session validation response status:', response.status);
+                    
+                    if (response.ok) {
+                        const sessionData = await response.json();
+                        console.log('  - Session data:', sessionData);
+                        
+                        if (!sessionData.is_completed) {
+                            console.log('  - 🔄 Auto-resuming cached session');
+                            // Automatically add session_id to URL and reload
+                            urlParams.set('session_id', cachedSessionId);
+                            const newUrl = window.location.pathname + '?' + urlParams.toString();
+                            console.log('  - Redirecting to:', newUrl);
+                            window.location.search = urlParams.toString();
+                            return;
+                        } else {
+                            // Session is completed, remove from cache
+                            localStorage.removeItem(cacheKey);
+                            console.log('  - 🗑️ Removed completed session from cache');
+                        }
+                    } else {
+                        // Session not found or expired, remove from cache
+                        localStorage.removeItem(cacheKey);
+                        console.log('  - 🗑️ Removed expired session from cache (status:', response.status, ')');
+                    }
+                } catch (error) {
+                    console.error('  - Error checking cached session:', error);
+                    localStorage.removeItem(cacheKey);
+                    console.log('  - 🗑️ Removed invalid session from cache due to error');
+                }
+            } else {
+                console.log('  - No cached session found');
+            }
+        } catch (error) {
+            console.error('Error in checkForCachedSessions:', error);
+        }
+    }
+    
+    function showSessionResumePrompt(session) {
+        const banner = document.createElement('div');
+        banner.id = 'session-banner';
+        banner.style.cssText = `
+            background: #007bff;
+            color: white;
+            padding: 12px;
+            text-align: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        `;
+        
+        const createdAt = new Date(session.created_at);
+        const timeAgo = getTimeAgo(createdAt);
+        
+        banner.innerHTML = `
+            <span>💬 You have an unfinished conversation from ${timeAgo}</span>
+            <button onclick="resumeSession('${session.session_id}')" style="
+                background: white; 
+                color: #007bff; 
+                border: none; 
+                padding: 6px 12px; 
+                border-radius: 4px; 
+                cursor: pointer;
+                font-weight: bold;
+            ">Resume</button>
+            <button onclick="startFreshSession()" style="
+                background: transparent; 
+                color: white; 
+                border: 1px solid white; 
+                padding: 6px 12px; 
+                border-radius: 4px; 
+                cursor: pointer;
+            ">Start Fresh</button>
+            <button onclick="hideBanner()" style="
+                background: transparent; 
+                color: white; 
+                border: none; 
+                padding: 6px 8px; 
+                cursor: pointer;
+                font-size: 16px;
+            ">&times;</button>
+        `;
+        
+        document.body.insertBefore(banner, document.body.firstChild);
+        
+        // Adjust content top margin to account for banner
+        document.querySelector('.content').style.marginTop = '60px';
+    }
+    
+    function getTimeAgo(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+        return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+    }
+    
+    function resumeSession(sessionId) {
+        console.log(`Resuming session: ${sessionId}`);
+        hideBanner();
+        
+        // Reload page with session_id parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('session_id', sessionId);
+        window.location.search = urlParams.toString();
+    }
+    
+    function startFreshSession() {
+        console.log('🔄 Starting fresh session');
+        hideBanner();
+        
+        // Clear cached session
+        const urlParams = new URLSearchParams(window.location.search);
+        const visa = urlParams.get('visa');
+        
+        // Clear appropriate cache
+        if (visa) {
+            const cacheKey = `session_${currentDomain}_${visa}`;
+            localStorage.removeItem(cacheKey);
+            console.log('  - Cleared cached session:', cacheKey);
+        } else {
+            // Clear anonymous session cache
+            const cacheKey = `session_${currentDomain}_anonymous`;
+            localStorage.removeItem(cacheKey);
+            console.log('  - Cleared anonymous cached session:', cacheKey);
+        }
+        
+        // Generate new session ID
+        const newSessionId = generateSessionId();
+        console.log('  - Generated new session ID:', newSessionId);
+        
+        // Update URL with new session ID and reload page
+        urlParams.set('session_id', newSessionId);
+        const newUrl = window.location.pathname + '?' + urlParams.toString();
+        console.log('  - Reloading with new session:', newUrl);
+        
+        window.location.href = newUrl;
+    }
+    
+    function hideBanner() {
+        const banner = document.getElementById('session-banner');
+        if (banner) {
+            banner.remove();
+            document.querySelector('.content').style.marginTop = '0';
+        }
+    }
+    
+    function updateSessionUI() {
+        if (!sessionInfo) return;
+        
+        // Update session status in dedicated area
+        const sessionStatusElement = document.getElementById('session-status');
+        if (sessionInfo.is_restored && sessionStatusElement) {
+            sessionStatusElement.innerHTML = `
+                <span style="color: #28a745; margin-left: 15px;">
+                    📝 Conversation resumed
+                </span>
+            `;
+        }
+    }
+    
+    function displayConversationHistory(historyData) {
+        console.log(`📼 Displaying ${historyData.length} messages from conversation history`);
+        
+        const chat = document.querySelector('.chat');
+        
+        // Clear any existing messages
+        chat.innerHTML = '';
+        
+        // Add each message to the chat
+        historyData.forEach((message, index) => {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.classList.add(message.role);
+            messageElement.id = `history-${index}`;
+            
+            const messageContent = document.createElement('div');
+            messageContent.classList.add('message-content');
+            messageContent.innerText = message.content;
+            messageElement.appendChild(messageContent);
+            
+            chat.appendChild(messageElement);
+        });
+        
+        // Scroll to bottom
+        chat.scrollTop = chat.scrollHeight;
+        
+        // Enable input for continuing the conversation
+        document.querySelector('.input textarea').disabled = false;
+        setThinking(false);
+        focusTextInput();
+        
+        console.log('✅ Conversation history displayed successfully');
+    }
+
+    </script>
+       <style>
+        
+        /* Styles for the popup */
+        .popup {
+            display: none;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        
+        /* Dark mode styles for the popup */
+        @media (prefers-color-scheme: dark) {
+            .popup {
+                background-color: #333;
+                color: #fff;
+            }
+        }
+
+        #stop-chat.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        }
+
+        /* Optimized banner styles */
+        .optimized-banner {
+            background: linear-gradient(135deg, #4CAF50, #2196F3);
+            color: white;
+            padding: 8px 0;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.9em;
+            position: relative;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+
+        .optimized-banner::before {
+            content: "🚀";
+            margin-right: 8px;
+        }
+
+        /* Version badge styles */
+        .version-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin-left: 8px;
+            display: inline-block;
+        }
+
+        .version-badge.optimized {
+            background: #2196F3;
+        }
+
+        /* Toolbar container */
+        .toolbar {
+            display: block;
+            width: 100%;
+            background: #f8f9fa;
+            padding: 10px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        /* New multi-row header layout */
+        .header-row {
+            display: flex;
+            width: 100%;
+            padding: 4px 0;
+            flex-wrap: nowrap;
+        }
+        
+        .title-row {
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .title-row h1 {
+            margin: 0;
+            flex: 1;
+        }
+        
+        /* Ensure title row doesn't collapse with other rows */
+        .title-row img {
+            height: 40px;
+            width: auto;
+        }
+        
+        .status-row {
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 30px;
+            margin-bottom: 8px;
+        }
+        
+        .left-status {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .right-status {
+            text-align: right;
+        }
+        
+        .session-status {
+            font-size: 0.8em;
+            color: #666;
+        }
+        
+        .left-status h2 {
+            margin: 0;
+            font-size: 1em;
+        }
+        
+        .button-row {
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
+        
+        .button-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Ensure rows don't collapse */
+        .toolbar > .header-row {
+            display: flex !important;
+            width: 100% !important;
+            margin-bottom: 5px;
+        }
+        
+        /* Force block layout for toolbar */
+        .toolbar {
+            display: block !important;
+            flex-direction: column !important;
+        }
+        
+        /* Button styling consistency */
+        .toolbar button {
+            margin: 2px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        
+        /* Button hover states */
+        .toolbar button:hover {
+            opacity: 0.9;
+        }
+        
+        /* Dark mode button fixes */
+        @media (prefers-color-scheme: dark) {
+            #home-button, #debug-button, #report-problem {
+                background: #333 !important;
+                color: white !important;
+                border-color: #555 !important;
+            }
+            
+            #home-button:hover, #debug-button:hover, #report-problem:hover {
+                background: #444 !important;
+            }
+        }
+
+        /* Optimization status indicators */
+        .optimization-indicators {
+            display: inline-flex;
+            gap: 5px;
+        }
+
+        .agent-status {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border-radius: 12px;
+            text-align: center;
+            line-height: 24px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .agent-status.optimized {
+            background: #4CAF50;
+        }
+
+        .agent-status.baseline {
+            background: #FF9800;
+        }
+
+        .optimization-status {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* Debug Panel Styles */
+        .debug-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 450px;
+            max-height: 80vh;
+            background: #f5f5f5;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-y: auto;
+        }
+
+        .debug-header {
+            background: #333;
+            color: white;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 6px 6px 0 0;
+        }
+
+        .debug-header h2 {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .refresh-debug {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .refresh-debug:hover {
+            background: #45a049;
+        }
+
+        .debug-content {
+            padding: 15px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        /* Status indicators for debug panel */
+        .status-connected {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .status-disconnected {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .status-connecting {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .debug-item.error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 4px 0;
+        }
+
+        .debug-section {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .debug-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .debug-item {
+            margin: 5px 0;
+            line-height: 1.4;
+        }
+
+        .debug-item strong {
+            color: #1976D2;
+        }
+
+        .question-id {
+            font-style: italic;
+            color: #666;
+            font-size: 11px;
+        }
+
+        .reasoning-text, .question-text {
+            background: #f9f9f9;
+            padding: 5px;
+            border-radius: 3px;
+            margin-top: 3px;
+            font-size: 11px;
+            border-left: 3px solid #FF9800;
+        }
+
+        .flags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .flag-item {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .flag-true {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .flag-false {
+            background: #f44336;
+            color: white;
+        }
+
+        .chat-history {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .history-msg {
+            margin: 3px 0;
+            padding: 3px;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+
+        .history-msg.user {
+            background: #E3F2FD;
+            border-left: 3px solid #2196F3;
+        }
+
+        .history-msg.assistant {
+            background: #F3E5F5;
+            border-left: 3px solid #9C27B0;
+        }
+
+        .history-msg.system {
+            background: #FFF3E0;
+            border-left: 3px solid #FF9800;
+        }
+
+        .routing-item {
+            margin: 8px 0;
+            padding: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            border-left: 3px solid #9C27B0;
+            font-size: 11px;
+        }
+
+        .routing-reason {
+            color: #9C27B0;
+            font-weight: bold;
+        }
+
+        .analysis-output {
+            background: #f8f8f8;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* Dark mode support for debug panel */
+        @media (prefers-color-scheme: dark) {
+            .debug-panel {
+                background: #2d2d2d;
+                border-color: #555;
+            }
+            
+            .debug-section {
+                background: #3d3d3d;
+                color: #fff;
+            }
+            
+            .debug-item strong {
+                color: #64B5F6;
+            }
+            
+            .reasoning-text, .question-text {
+                background: #4d4d4d;
+                color: #fff;
+            }
+
+            .routing-item {
+                background: #4d4d4d;
+                color: #fff;
+            }
+
+            .analysis-output {
+                background: #333;
+                color: #fff;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="content">
+        <div class="front side">
+            <div class="toolbar">
+                <!-- Row 1: Title -->
+                <div class="header-row title-row">
+                    <img src="chat_assets/caltech.svg" alt="Caltech Logo" />
+                    <h1 id="main-title">ElectionBot</h1>
+                </div>
+                
+                <!-- Row 2: Status Information -->
+                <div class="header-row status-row">
+                    <div class="left-status">
+                        <h2 id="connection-status"></h2>
+                        <div id="optimization-status" class="optimization-status"></div>
+                        <div id="session-status" class="session-status"></div>
+                    </div>
+                </div>
+                
+                <!-- Row 3: Action Buttons -->
+                <div class="header-row button-row">
+                    <div class="button-group">
+                        <button id="home-button" onclick="goHome()" title="Return to Home" style="background: white; color: #333; border: 1px solid #dee2e6; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">🏠</button>
+                        <button id="fresh-session-button" onclick="startFreshSession()" title="Start a new conversation session" style="background: #28a745; color: white; border: none; padding: 12px 34px; border-radius: 6px; cursor: pointer; margin: 0 8px; font-size: 16px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space: nowrap;">🔄 Start<br>Fresh</button>
+                        <button id="debug-button" onclick="toggleDebug()" title="Show/Hide Debug Info" style="background: white; color: #333; border: 1px solid #dee2e6; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">🐛 Debug</button>
+                    </div>
+                    <div class="button-group" style="margin-right: 20px;">
+                        <button id="report-problem" onclick="reportProblem()" style="background: white; color: #333; border: 1px solid #dee2e6; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; white-space: nowrap;">Give<br>Feedback</button>
+                    </div>
+                </div>
+            </div>
+            <div class="chat">
+                <div id="countdown" style="display: none; text-align: center; padding: 10px; font-weight: bold;"></div>
+            </div>
+            <div class="input">
+                <textarea onkeydown="chatKeyDown()"></textarea>
+                <button onclick="clickSend()">
+                    <img src="chat_assets/send.svg" />
+                </button>
+            </div>
+        </div>
+        <div class="back code side">
+            <div class="toolbar">
+                <h1>Internal Trace</h1>
+                <h2 id="address"></h2>
+            </div>
+            <div id="raw-prompt"></div>
+        </div>
+    </div>
+    
+    <!-- Debug Panel -->
+    <div id="debug-panel" class="debug-panel" style="display: none;">
+        <div class="debug-header">
+            <h2>🐛 Debug Information</h2>
+            <button onclick="requestDebugInfo()" class="refresh-debug">🔄 Refresh</button>
+        </div>
+        <div id="debug-content" class="debug-content">
+            Loading debug information...
+        </div>
+    </div>
+</body>
+</html>

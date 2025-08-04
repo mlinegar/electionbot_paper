@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generalized Misinformation Inoculation System</title>
+    <link rel="stylesheet" href="chat_assets/index.css">
+    <style>
+        .domain-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        .domain-elections {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        }
+        .domain-vaccines {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+        }
+        .experimental-notice {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .domain-icon {
+            font-size: 1.2em;
+            margin-right: 8px;
+        }
+    </style>
+    <script>
+    let userMessageCount = 0;
+    let ws;
+    let currentDomain = window.chatDomain || 'elections';
+    
+    const domainConfig = {
+        elections: {
+            icon: '🗳️',
+            name: 'Election Integrity',
+            description: 'Research conversation about election processes and misinformation'
+        },
+        vaccines: {
+            icon: '💉', 
+            name: 'Vaccine Science',
+            description: 'Research conversation about vaccine safety and misinformation'
+        }
+    };
+
+    function focusTextInput() {
+        const textInput = document.querySelector('.input textarea');
+        if (textInput) {
+            textInput.focus();
+        }
+    }
+
+    function updateStopButton() {
+        const stopButton = document.getElementById('stop-chat');
+        if (userMessageCount >= 3) {
+            stopButton.classList.remove('disabled');
+        } else {
+            stopButton.classList.add('disabled');
+        }
+    }
+
+    function handleStopChat() {
+        if (userMessageCount >= 3) {
+            const confirmStop = confirm("This will end your chat session. This action cannot be undone. Are you sure?");
+            if (confirmStop) {
+                stopChat();
+            }
+        } else {
+            alert("Please send at least 3 messages before stopping the chat.");
+        }
+    }
+
+    function stopChat() {
+        console.log('Stopping chat');
+        if (ws) {
+            ws.close();
+        }
+        
+        // Show completion message
+        const chatMessages = document.getElementById('chat-messages');
+        const completionDiv = document.createElement('div');
+        completionDiv.className = 'message-container';
+        completionDiv.innerHTML = `
+            <div class="message assistant-message">
+                <div class="message-content">
+                    <p><strong>Thank you for participating in this research conversation!</strong></p>
+                    <p>Your responses help us understand how to better address misinformation in the ${domainConfig[currentDomain].name.toLowerCase()} domain.</p>
+                    <p>You can now close this window or <a href="/generalized">try a different domain</a>.</p>
+                </div>
+            </div>
+        `;
+        chatMessages.appendChild(completionDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Disable input
+        const textarea = document.querySelector('.input textarea');
+        const sendButton = document.querySelector('.send-btn');
+        if (textarea) textarea.disabled = true;
+        if (sendButton) sendButton.disabled = true;
+    }
+
+    function updateConnectionStatus(connected) {
+        const statusElement = document.getElementById('connection-status');
+        if (connected) {
+            statusElement.textContent = 'Connected';
+            statusElement.className = 'connection-status connected';
+        } else {
+            statusElement.textContent = 'Disconnected';
+            statusElement.className = 'connection-status disconnected';
+        }
+    }
+
+    function updateDomainHeader() {
+        const domain = domainConfig[currentDomain];
+        const headerElement = document.getElementById('domain-header');
+        if (headerElement && domain) {
+            headerElement.innerHTML = `
+                <span class="domain-icon">${domain.icon}</span>
+                ${domain.name} - ${domain.description}
+            `;
+            headerElement.className = `domain-header domain-${currentDomain}`;
+        }
+    }
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const visa = window.chatVisa || '';
+        const visaParam = visa ? `visa=${encodeURIComponent(visa)}&` : '';
+        const wsUrl = `${protocol}//${window.location.host}/generalized/chat?${visaParam}domain=${currentDomain}`;
+        
+        console.log('Connecting to:', wsUrl);
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function(event) {
+            console.log('WebSocket connection opened');
+            updateConnectionStatus(true);
+        };
+
+        ws.onmessage = function(event) {
+            console.log('Received message:', event.data);
+            const data = JSON.parse(event.data);
+            
+            if (data.error) {
+                displayMessage('System Error: ' + data.error, 'assistant');
+                return;
+            }
+            
+            if (data.message) {
+                displayMessage(data.message, 'assistant');
+            }
+            
+            if (data.conversation_complete) {
+                stopChat();
+            }
+        };
+
+        ws.onclose = function(event) {
+            console.log('WebSocket connection closed');
+            updateConnectionStatus(false);
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            updateConnectionStatus(false);
+        };
+    }
+
+    function sendMessage() {
+        const textarea = document.querySelector('.input textarea');
+        const message = textarea.value.trim();
+        
+        if (message === '') return;
+        
+        // Display user message
+        displayMessage(message, 'user');
+        
+        // Send via WebSocket
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'input',
+                message: message
+            }));
+        }
+        
+        // Clear input and update counter
+        textarea.value = '';
+        userMessageCount++;
+        updateStopButton();
+        focusTextInput();
+    }
+
+    function displayMessage(message, sender) {
+        const chatMessages = document.getElementById('chat-messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message-container';
+        
+        const senderClass = sender === 'user' ? 'user-message' : 'assistant-message';
+        messageDiv.innerHTML = `
+            <div class="message ${senderClass}">
+                <div class="message-content">
+                    ${message.replace(/\n/g, '<br>')}
+                </div>
+            </div>
+        `;
+        
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Initialize when page loads
+    window.addEventListener('load', function() {
+        updateDomainHeader();
+        connectWebSocket();
+        focusTextInput();
+        
+        // Set up send button
+        const sendButton = document.querySelector('.send-btn');
+        if (sendButton) {
+            sendButton.addEventListener('click', sendMessage);
+        }
+        
+        // Set up enter key
+        const textarea = document.querySelector('.input textarea');
+        if (textarea) {
+            textarea.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+        
+        // Set up stop button
+        const stopButton = document.getElementById('stop-chat');
+        if (stopButton) {
+            stopButton.addEventListener('click', handleStopChat);
+        }
+    });
+    </script>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div id="domain-header" class="domain-header">
+                <span class="domain-icon">🧪</span>
+                Generalized System
+            </div>
+            <div id="connection-status" class="connection-status disconnected">Connecting...</div>
+            
+            <div class="experimental-notice">
+                🔬 <strong>Experimental Research System</strong> - This conversation is part of academic research into misinformation inoculation across different domains.
+            </div>
+        </div>
+        
+        <div id="chat-messages" class="chat-messages">
+            <!-- Messages will be added here dynamically -->
+        </div>
+        
+        <div class="chat-input">
+            <div class="input">
+                <textarea placeholder="Type your message here..." rows="3"></textarea>
+            </div>
+            <div class="input-controls">
+                <button class="send-btn">Send</button>
+                <button id="stop-chat" class="stop-btn disabled">Stop Chat</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <a href="/generalized">← Back to Domain Selection</a> | 
+        <a href="/">← Home</a>
+    </div>
+</body>
+</html>

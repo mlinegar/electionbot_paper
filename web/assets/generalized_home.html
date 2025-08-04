@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generalized Misinformation Inoculation System</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 900px; 
+            margin: 0 auto; 
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+        h1 { 
+            color: #2c3e50; 
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.8em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 40px;
+            font-size: 1.3em;
+            font-weight: 300;
+        }
+        .domains-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+        .domain-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 40px;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            text-align: center;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            position: relative;
+            overflow: hidden;
+        }
+        .domain-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+        }
+        .domain-card:hover::before {
+            left: 100%;
+        }
+        .domain-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 48px rgba(0,0,0,0.15);
+            border-color: #007bff;
+        }
+        .domain-card.elections {
+            border-color: #007bff;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+        .domain-card.elections:hover {
+            border-color: #0056b3;
+            box-shadow: 0 12px 48px rgba(0,123,255,0.3);
+        }
+        .domain-card.vaccines {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
+        }
+        .domain-card.vaccines:hover {
+            border-color: #1e7e34;
+            box-shadow: 0 12px 48px rgba(40,167,69,0.3);
+        }
+        .domain-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            display: block;
+        }
+        .domain-title {
+            font-size: 1.8em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        .domain-description {
+            color: #6c757d;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .domain-features {
+            text-align: left;
+            margin-top: 20px;
+        }
+        .domain-features h4 {
+            color: #495057;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .domain-features ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #6c757d;
+        }
+        .domain-features li {
+            margin-bottom: 5px;
+        }
+        .info-section {
+            margin-top: 40px;
+            padding: 25px;
+            background: linear-gradient(135deg, #e7f3ff 0%, #f0f8ff 100%);
+            border-radius: 12px;
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+        .info-section h3 {
+            color: #0056b3;
+            margin-bottom: 15px;
+        }
+        .back-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #6c757d;
+            text-decoration: none;
+            font-size: 1.1em;
+            transition: color 0.3s ease;
+        }
+        .back-link:hover {
+            color: #007bff;
+        }
+        .experimental-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: linear-gradient(45deg, #FF9800, #FF5722);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(255,152,0,0.3);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-link">← Back to Home</a>
+    
+    <div class="container">
+        <h1>🧪 Generalized System</h1>
+        <p class="subtitle">Multi-Domain Misinformation Inoculation Research</p>
+        
+        <div class="info-section">
+            <h3>Choose Your Research Domain</h3>
+            <p>This experimental system allows you to explore misinformation inoculation across different topics. Each domain uses the same research methodology but focuses on different types of false claims.</p>
+        </div>
+        
+        <div class="domains-grid">
+            <a href="/generalized/elections" class="domain-card elections">
+                <div class="experimental-badge">🔬 Research</div>
+                <div class="domain-icon">🗳️</div>
+                <div class="domain-title">Election Integrity</div>
+                <div class="domain-description">
+                    Explore conversations about election processes, voting systems, and election fraud claims.
+                </div>
+                <div class="domain-features">
+                    <h4>Research Focus:</h4>
+                    <ul>
+                        <li>Non-citizen voting myths</li>
+                        <li>Voter registration fraud</li>
+                        <li>Election security facts</li>
+                        <li>Democratic processes</li>
+                    </ul>
+                </div>
+            </a>
+            
+            <a href="/generalized/vaccines" class="domain-card vaccines">
+                <div class="experimental-badge">🔬 Research</div>
+                <div class="domain-icon">💉</div>
+                <div class="domain-title">Vaccine Science</div>
+                <div class="domain-description">
+                    Engage with conversations about vaccine safety, medical science, and health misinformation.
+                </div>
+                <div class="domain-features">
+                    <h4>Research Focus:</h4>
+                    <ul>
+                        <li>Autism-vaccine myths</li>
+                        <li>DNA alteration claims</li>
+                        <li>Vaccine science facts</li>
+                        <li>Public health evidence</li>
+                    </ul>
+                </div>
+            </a>
+        </div>
+        
+        <div class="info-section">
+            <h3>Research Methodology</h3>
+            <p>Both domains use the same evidence-based inoculation approach: <strong>forewarning</strong> about misinformation, exposure to <strong>weakened doses</strong> of false claims, and <strong>prebunking</strong> with factual information. This helps build resistance against misinformation.</p>
+            
+            <p><strong>Academic Research:</strong> This is part of ongoing studies at Caltech and Washington University exploring how AI can support informed decision-making in democratic societies.</p>
+        </div>
+    </div>
+    
+    <script>
+        // Add some interactivity
+        document.querySelectorAll('.domain-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                // Add click animation
+                this.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                }, 150);
+            });
+        });
+    </script>
+</body>
+</html>
