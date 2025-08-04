@@ -1,152 +1,166 @@
-# ElectionBot V1.0 - Paper Repository
+# The Persuasiveness of Artificial Intelligence: Can AI Chatbots Reduce Beliefs in Election Rumors
 
-This repository contains the original V1.0 implementation of the election chatbot, preserved for code review and academic paper analysis.
+This repository contains the replication code for our paper examining the effectiveness of AI chatbots in combating election misinformation.
+
+## Overview
+
+This project implements an AI-powered chatbot designed to engage users in conversations about election integrity, providing fact-based information to counter common election-related misinformation. The chatbot was deployed as part of a randomized controlled trial to measure its effectiveness in reducing belief in election rumors.
 
 ## Repository Structure
 
 ```
 electionbot_paper/
-├── chatbot/          # Core V1.0 chatbot implementation
-├── web/assets/       # Original web interface files
-├── data/             # Data files for chatbot operation
-├── analysis/         # R scripts for paper analysis
-├── config/           # Configuration files
-└── requirements.txt  # Python dependencies
+├── analysis/                 # Statistical analysis code
+│   ├── electionbot.R        # Main analysis script
+│   └── helper_functions.R   # Helper functions for analysis
+├── chatbot/                 # Core chatbot implementation
+├── web/assets/              # Web interface files
+├── data/                    # Data files and conversation scripts
+├── config/                  # Configuration files
+└── requirements.txt         # Python dependencies
 ```
 
-## Setup Instructions
+## Analysis Code
 
-### 1. Python Environment
+The statistical analysis examining the chatbot's effectiveness is contained in the `analysis/` directory.
 
-Create and activate a Python virtual environment:
+### Running the Analysis
 
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Linux/Mac
-# or
-venv\Scripts\activate  # On Windows
-```
+1. Open R or RStudio
+2. Set your working directory to the `analysis/` folder
+3. Run the main analysis script:
+   ```r
+   source("electionbot.R")
+   ```
 
-Install dependencies:
+The analysis script will:
+- Load the helper functions from `helper_functions.R` automatically
+- Process conversation logs and survey data
+- Generate tables and figures showing treatment effects
+- Output results comparing chatbot effectiveness to control conditions
 
-```bash
-pip install -r requirements.txt
-```
+### Key Analysis Components
 
-### 2. Database Setup
+- **`electionbot.R`**: Main analysis script that produces all results reported in the paper
+- **`helper_functions.R`**: Supporting functions for data processing and statistical tests
 
-The chatbot uses PostgreSQL. Set up the database:
+## Chatbot Implementation
 
-```bash
-# Create database
-createdb electionbot_v1
+### Prerequisites
 
-# Run database migrations
-cd chatbot
-python manage_db.py
-```
+- Python 3.8+
+- PostgreSQL database
+- Nginx (for production deployment)
 
-### 3. Configuration
+### Setup Instructions
 
-Update the configuration in `chatbot/config.py`:
-- Database connection settings
-- API keys (OpenAI, etc.)
-- WebSocket server settings
+1. **Create Python Virtual Environment**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Linux/Mac
+   ```
 
-### 4. Running the Chatbot
+2. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Start the chat server:
+3. **Database Setup**
+   ```bash
+   # Create PostgreSQL database
+   createdb electionbot_v1
+   
+   # Update database credentials in .env file
+   cp .env.example .env
+   # Edit .env with your database credentials
+   ```
 
+4. **Initialize Database**
+   ```bash
+   cd chatbot
+   python manage_db.py
+   ```
+
+### Running the Chatbot
+
+#### Development Mode
+
+Start the chatbot server:
 ```bash
 cd chatbot
 python launch_chatserver.py
 ```
 
-Start the web application:
+The chatbot will be available at `http://localhost:8081`
 
-```bash
-python launch_web_app.py
-```
+#### Production Deployment
 
-### 5. Web Server Configuration (Nginx)
+1. **Configure Nginx**
+   ```nginx
+   server {
+       listen 80;
+       server_name your-domain.com;
+       
+       location / {
+           proxy_pass http://127.0.0.1:8081;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection "upgrade";
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+   }
+   ```
 
-Example Nginx configuration for production deployment:
+2. **Use Supervisor for Process Management**
+   ```bash
+   # Copy supervisor config
+   sudo cp config/electionbot.supervisor.conf /etc/supervisor/conf.d/
+   sudo supervisorctl reread
+   sudo supervisorctl update
+   sudo supervisorctl start electionbot
+   ```
 
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
+### Configuration
 
-    location / {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
+Key configuration options in `chatbot/config.py`:
+- `script_name`: Selects which conversation script to use (default: "election2024_v2")
+- `external_port`: External port for web interface
+- `internal_port`: Internal WebSocket port
+- Database connection settings
+- OpenAI API configuration
 
-    location /ws {
-        proxy_pass http://localhost:8765;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-    }
-}
-```
+### Conversation Scripts
 
-### 6. Process Management (Supervisor)
+The chatbot uses structured conversation scripts located in `data/`:
+- `election2024_v2.json`: Main conversation flow about election integrity
+- `rumor_examples.tsv`: Examples of election misinformation
+- `additional_info.tsv`: Supplementary information sources
 
-Use the provided supervisor configuration in `config/electionbot.supervisor.conf` to manage the chatbot processes.
+## Experimental Design
 
-## Data Files
-
-- `data/additional_info.tsv` - Additional information for chatbot responses
-- `data/rumor_examples.tsv` - Example rumors/misinformation
-- `data/election2024*.json` - Election-specific data files
-- `data/non_citizen_voting*.json` - Topic-specific response data
-
-## Analysis Code
-
-The `analysis/` directory contains R scripts for paper analysis:
-- `electionbot.R` - Main analysis script
-- `helper_functions.R` - Utility functions for analysis
-
-## Key Components
-
-### Chatbot Core (`chatbot/`)
-- `chat_logic.py` - Main chat logic implementation
-- `my_generate.py` - Response generation logic
-- `handlers*.py` - Request handlers for different pages
-- `models.py` - Database models
-- `session_manager.py` - Session management
-- `utils.py` - Utility functions
-
-### Web Interface (`web/assets/`)
-- `index_optimized_generalized.html` - Main chat interface
-- `domains_selection.html` - Domain selection page
-- `survey-complete.html` - Post-chat completion page
-- `script.js` - Client-side JavaScript
-- `index.css` - Styling
-
-## Academic Context
-
-This is the V1.0 implementation used for the research collaboration between Caltech and Washington University on misinformation inoculation through conversational AI.
-
-## Important Notes
-
-- This is a preserved version for academic review and should not be modified
-- The implementation uses WebSocket for real-time chat communication
-- Multiple research domains are supported (elections, vaccines, AI)
-- Integration with YouGov survey platform for research data collection
-
-## Troubleshooting
-
-1. **Database connection issues**: Check PostgreSQL is running and credentials in `config.py` are correct
-2. **WebSocket errors**: Ensure both chat server (port 8765) and web app (port 5000) are running
-3. **Missing dependencies**: Run `pip install -r requirements.txt` again
+The chatbot was designed to:
+1. Engage users in natural conversation about elections
+2. Identify and address specific misinformation beliefs
+3. Provide fact-based corrections from authoritative sources
+4. Measure changes in beliefs through pre/post surveys
 
 ## Citation
 
-[Add paper citation details when available]
+If you use this code in your research, please cite:
+
+```bibtex
+@article{[citation details to be added upon publication]}
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contact
+
+For questions about the code or implementation, please contact [contact information].
+
+## Acknowledgments
+
+This research was conducted in collaboration between Caltech and Washington University in St. Louis.
