@@ -158,13 +158,13 @@ python manage_db.py
 # Database initialized successfully!
 ```
 
-#### 6. Test the Installation
+#### 6. Verify the Installation
 
-Run a simple test to ensure everything is connected:
+Check that the configuration loads correctly:
 
 ```bash
-# Still in the chatbot directory
-python -c "from database import engine; print('Database connection successful!')"
+cd chatbot
+python -c "import config; print('Configuration loaded successfully!')"
 ```
 
 ### Running the Chatbot
@@ -192,40 +192,6 @@ python -c "from database import engine; print('Database connection successful!')
 
 3. **To stop the server:**
    - Press `Ctrl+C` in the terminal
-
-#### Common Issues and Troubleshooting
-
-**Issue: "psycopg2" installation fails**
-```bash
-# Install PostgreSQL development files
-# On Ubuntu/Debian:
-sudo apt-get install libpq-dev python3-dev
-
-# On Mac:
-brew install postgresql
-```
-
-**Issue: "OpenAI API key is invalid"**
-- Ensure your API key in `.env` starts with `sk-`
-- Check that you have credits on your OpenAI account
-- Verify the key at https://platform.openai.com/api-keys
-
-**Issue: "Database connection failed"**
-```bash
-# Check PostgreSQL is running
-sudo systemctl status postgresql  # Linux
-brew services list  # Mac
-
-# Test connection
-psql -U electionbot_user -d electionbot_db -h localhost
-```
-
-**Issue: "Port 8081 already in use"**
-```bash
-# Find and kill the process using the port
-lsof -i :8081
-kill -9 <PID>
-```
 
 ### Production Deployment
 
@@ -289,61 +255,133 @@ kill -9 <PID>
    sudo supervisorctl status electionbot
    ```
 
-### Configuration Options
+### Configuration
 
-The main configuration file is `chatbot/config.py`. Key options:
+#### Main Configuration File
 
-- `script_name`: Which conversation script to use
-  - `"election2024_v2"` (default): Main election conversation
-  - `"non_citizen_voting_v7"`: Focused on non-citizen voting myths
-  
-- `max_depth`: Maximum conversation depth (default: 2)
-- `small_model` / `large_model`: GPT model names
-- `max_tokens`: Maximum response length
+The primary configuration is in `chatbot/config_standalone.py`:
 
-### Testing the Installation
+```python
+# Key configuration variables:
+script_name = "election2024_v2"  # Which conversation script to use
+max_depth = 2                    # Maximum conversation depth
+external_port = 8080            # Port for external access
+internal_port = 8081            # Internal server port
+host = '127.0.0.1'              # Server host
 
-Once running, test the chatbot:
-
-1. Navigate to the chat interface
-2. You should see: "Hi! I'm Brook, a chatbot..."
-3. Type a response and press Enter
-4. The bot should respond within a few seconds
-
-Check logs for errors:
-```bash
-# If using supervisor
-sudo tail -f /var/log/supervisor/electionbot-stdout.log
-
-# If running directly
-# Check the terminal where you started the server
+# Model configuration
+small_model = 'gpt-3.5-turbo'   # For simple responses
+large_model = 'gpt-4'            # For complex reasoning
+max_tokens = 1500                # Maximum response length
 ```
 
-## Data Files
+#### Available Scripts
 
-### Conversation Scripts
+- `election2024_v2.json` - Main election conversation covering voter fraud claims
+- `non_citizen_voting_v7.json` - Focused on non-citizen voting myths
+- `election2024_v3_streamlined.json` - Shorter, more focused version
 
-Located in `data/`:
-- `election2024_v2.json`: Main conversation flow
-- `rumor_examples.tsv`: Election misinformation examples
-- `additional_info.tsv`: Fact-checking sources
+To change scripts, edit `script_name` in the config file.
 
-### Script Format
+## Conversation Script Format
 
-The conversation scripts are JSON files with this structure:
+### Script Structure
+
+The chatbot uses a structured conversation format with steps and questions. Each script is a JSON array with:
+
+1. **Header object** - Contains metadata
+2. **Step objects** - Each step has multiple questions
+
+### Question Types and Special Syntax
+
+#### ASK: Directive
+When a question contains `"ASK:"`, the chatbot must ask that specific question:
+```json
+{
+  "question_text_every_time": "ASK: Would you like a refresher about claims of election fraud?",
+  "generate_flag": true,
+  "flag_text": "Does the user want a refresher?"
+}
+```
+
+#### VERBATIM Responses
+When `"verbatim": true`, the chatbot outputs the exact text without modification:
+```json
+{
+  "question_text_first_time": "Thank you for participating!",
+  "verbatim": true,
+  "requires_user_answer": false
+}
+```
+
+### Flags and Branching
+
+The conversation flow is controlled by flags that the chatbot sets based on user responses:
+
+```json
+{
+  "generate_flag": true,
+  "flag_text": "Does the user have any follow up questions?",
+  "flag_required": true
+}
+```
+
+- `generate_flag`: Whether to evaluate and set a flag
+- `flag_text`: The question the chatbot answers to set the flag
+- `flag_required`: Whether a specific flag value is needed to show this question
+
+#### Flag Logic
+- Flags are boolean (true/false)
+- The chatbot evaluates user responses against `flag_text`
+- Questions with `"flag_required": true` only appear if the previous flag was true
+- Questions with `"flag_required": false` only appear if the previous flag was false
+
+### Important Fields
+
+- `question_text_first_time` - Text used on first encounter
+- `question_text_every_time` - Text used if revisiting (e.g., after a loop)
+- `requires_user_answer` - Whether to wait for user input
+- `allow_assistant_response` - Whether the assistant can respond
+- `max_length` - Maximum tokens for the response
+- `recallable` - Whether this node can be returned to
+
+### Example Flow
+
 ```json
 [
   {
-    "script_description": "Description of the conversation flow",
-    "initial_message": "Hi! I'm Brook..."
-  },
-  {
-    "node_id": "ask_name",
-    "text": "Is there a name you'd like me to call you?",
-    "children": ["greeting"]
+    "step_num": 0,
+    "questions": [
+      {
+        "question_id": "intro",
+        "question_text_first_time": "Introduce the topic of election fraud",
+        "question_text_every_time": "ASK: Would you like a refresher?",
+        "generate_flag": true,
+        "flag_text": "Does the user want a refresher?",
+        "flag_required": null
+      },
+      {
+        "question_id": "detail",
+        "question_text_first_time": "Provide detailed information...",
+        "flag_required": true,  // Only shows if previous flag was true
+        "verbatim": false
+      }
+    ]
   }
 ]
 ```
+
+## Additional Information Sources
+
+The chatbot can reference fact-checking sources defined in `data/additional_info.tsv`:
+
+```tsv
+info_id	info_name	description	content
+source1	AP Fact Check	Associated Press fact-checking	Detailed fact-check content...
+source2	Reuters	Reuters fact-checking service	Fact-check findings...
+```
+
+These are loaded automatically and can be referenced by the chatbot when providing evidence-based corrections.
 
 ## Experimental Design
 
