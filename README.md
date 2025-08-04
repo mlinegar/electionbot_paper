@@ -48,54 +48,200 @@ The analysis script will:
 
 ### Prerequisites
 
-- Python 3.8+
-- PostgreSQL database
-- Nginx (for production deployment)
+- Python 3.8 or higher
+- PostgreSQL 12 or higher
+- pip (Python package manager)
+- An OpenAI API key (for GPT models)
+- (Optional) Nginx for production deployment
 
-### Setup Instructions
+### Detailed Setup Instructions
 
-1. **Create Python Virtual Environment**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Linux/Mac
-   ```
+#### 1. Clone the Repository
 
-2. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+git clone https://github.com/mlinegar/electionbot_paper.git
+cd electionbot_paper
+```
 
-3. **Database Setup**
-   ```bash
-   # Create PostgreSQL database
-   createdb electionbot_v1
-   
-   # Update database credentials in .env file
-   cp .env.example .env
-   # Edit .env with your database credentials
-   ```
+#### 2. Set Up Python Environment
 
-4. **Initialize Database**
-   ```bash
-   cd chatbot
-   python manage_db.py
-   ```
+Create and activate a virtual environment:
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+
+# Activate it
+# On Linux/Mac:
+source venv/bin/activate
+
+# On Windows:
+# venv\Scripts\activate
+```
+
+Install Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 3. Install and Configure PostgreSQL
+
+**On Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+```
+
+**On Mac (using Homebrew):**
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+**Create a database and user:**
+```bash
+# Switch to postgres user
+sudo -u postgres psql
+
+# In the PostgreSQL prompt, run:
+CREATE DATABASE electionbot_db;
+CREATE USER electionbot_user WITH PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE electionbot_db TO electionbot_user;
+\q
+```
+
+#### 4. Configure Environment Variables
+
+Copy the example environment file and edit it:
+
+```bash
+cd /path/to/electionbot_paper
+cp .env.example .env
+nano .env  # or use your preferred text editor
+```
+
+Update the values in `.env` with your actual credentials:
+
+```bash
+# Database Configuration
+DB_NAME=electionbot_db
+DB_USER=electionbot_user
+DB_PASSWORD=your_secure_password
+DB_HOST=localhost
+DB_PORT=5432
+
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_ORGANIZATION=org-your-org-id  # Optional
+
+# Server Configuration
+EXTERNAL_PORT=8080
+INTERNAL_PORT=8081
+
+# Model Configuration (Optional - defaults shown)
+ELECTIONBOT_MODEL_SMALL=gpt-3.5-turbo
+ELECTIONBOT_MODEL_DEFAULT=gpt-4
+```
+
+#### 5. Initialize the Database
+
+```bash
+# Navigate to chatbot directory
+cd chatbot
+
+# Run database initialization
+python manage_db.py
+
+# You should see output like:
+# Creating database tables...
+# Database initialized successfully!
+```
+
+#### 6. Test the Installation
+
+Run a simple test to ensure everything is connected:
+
+```bash
+# Still in the chatbot directory
+python -c "from database import engine; print('Database connection successful!')"
+```
 
 ### Running the Chatbot
 
-#### Development Mode
+#### Development Mode (Local Testing)
 
-Start the chatbot server:
+1. **Start the chatbot server:**
+   ```bash
+   cd /path/to/electionbot_paper/chatbot
+   python launch_chatserver.py
+   ```
+
+   You should see:
+   ```
+   Starting ElectionBot server...
+   Loading script: election2024_v2
+   Server initialized in X.XXs
+   Server running on http://127.0.0.1:8081
+   ```
+
+2. **Access the chatbot:**
+   - Open your web browser
+   - Navigate to `http://localhost:8081/bot`
+   - You should see the ElectionBot interface
+
+3. **To stop the server:**
+   - Press `Ctrl+C` in the terminal
+
+#### Common Issues and Troubleshooting
+
+**Issue: "psycopg2" installation fails**
 ```bash
-cd chatbot
-python launch_chatserver.py
+# Install PostgreSQL development files
+# On Ubuntu/Debian:
+sudo apt-get install libpq-dev python3-dev
+
+# On Mac:
+brew install postgresql
 ```
 
-The chatbot will be available at `http://localhost:8081`
+**Issue: "OpenAI API key is invalid"**
+- Ensure your API key in `.env` starts with `sk-`
+- Check that you have credits on your OpenAI account
+- Verify the key at https://platform.openai.com/api-keys
 
-#### Production Deployment
+**Issue: "Database connection failed"**
+```bash
+# Check PostgreSQL is running
+sudo systemctl status postgresql  # Linux
+brew services list  # Mac
 
-1. **Configure Nginx**
+# Test connection
+psql -U electionbot_user -d electionbot_db -h localhost
+```
+
+**Issue: "Port 8081 already in use"**
+```bash
+# Find and kill the process using the port
+lsof -i :8081
+kill -9 <PID>
+```
+
+### Production Deployment
+
+#### Using Nginx and Supervisor
+
+1. **Install Nginx:**
+   ```bash
+   sudo apt install nginx  # Ubuntu/Debian
+   ```
+
+2. **Create Nginx configuration:**
+   ```bash
+   sudo nano /etc/nginx/sites-available/electionbot
+   ```
+
+   Add:
    ```nginx
    server {
        listen 80;
@@ -108,34 +254,96 @@ The chatbot will be available at `http://localhost:8081`
            proxy_set_header Connection "upgrade";
            proxy_set_header Host $host;
            proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_read_timeout 86400;
        }
    }
    ```
 
-2. **Use Supervisor for Process Management**
+3. **Enable the site:**
    ```bash
-   # Copy supervisor config
+   sudo ln -s /etc/nginx/sites-available/electionbot /etc/nginx/sites-enabled/
+   sudo nginx -t  # Test configuration
+   sudo systemctl reload nginx
+   ```
+
+4. **Install and configure Supervisor:**
+   ```bash
+   sudo apt install supervisor
+   
+   # Copy the provided supervisor config
    sudo cp config/electionbot.supervisor.conf /etc/supervisor/conf.d/
+   
+   # Edit the config to match your paths
+   sudo nano /etc/supervisor/conf.d/electionbot.supervisor.conf
+   
+   # Reload supervisor
    sudo supervisorctl reread
    sudo supervisorctl update
    sudo supervisorctl start electionbot
    ```
 
-### Configuration
+5. **Check status:**
+   ```bash
+   sudo supervisorctl status electionbot
+   ```
 
-Key configuration options in `chatbot/config.py`:
-- `script_name`: Selects which conversation script to use (default: "election2024_v2")
-- `external_port`: External port for web interface
-- `internal_port`: Internal WebSocket port
-- Database connection settings
-- OpenAI API configuration
+### Configuration Options
+
+The main configuration file is `chatbot/config.py`. Key options:
+
+- `script_name`: Which conversation script to use
+  - `"election2024_v2"` (default): Main election conversation
+  - `"non_citizen_voting_v7"`: Focused on non-citizen voting myths
+  
+- `max_depth`: Maximum conversation depth (default: 2)
+- `small_model` / `large_model`: GPT model names
+- `max_tokens`: Maximum response length
+
+### Testing the Installation
+
+Once running, test the chatbot:
+
+1. Navigate to the chat interface
+2. You should see: "Hi! I'm Brook, a chatbot..."
+3. Type a response and press Enter
+4. The bot should respond within a few seconds
+
+Check logs for errors:
+```bash
+# If using supervisor
+sudo tail -f /var/log/supervisor/electionbot-stdout.log
+
+# If running directly
+# Check the terminal where you started the server
+```
+
+## Data Files
 
 ### Conversation Scripts
 
-The chatbot uses structured conversation scripts located in `data/`:
-- `election2024_v2.json`: Main conversation flow about election integrity
-- `rumor_examples.tsv`: Examples of election misinformation
-- `additional_info.tsv`: Supplementary information sources
+Located in `data/`:
+- `election2024_v2.json`: Main conversation flow
+- `rumor_examples.tsv`: Election misinformation examples
+- `additional_info.tsv`: Fact-checking sources
+
+### Script Format
+
+The conversation scripts are JSON files with this structure:
+```json
+[
+  {
+    "script_description": "Description of the conversation flow",
+    "initial_message": "Hi! I'm Brook..."
+  },
+  {
+    "node_id": "ask_name",
+    "text": "Is there a name you'd like me to call you?",
+    "children": ["greeting"]
+  }
+]
+```
 
 ## Experimental Design
 
