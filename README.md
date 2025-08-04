@@ -167,93 +167,83 @@ cd chatbot
 python -c "import config; print('Configuration loaded successfully!')"
 ```
 
-### Running the Chatbot
+## Running the Chatbot
 
-#### Development Mode (Local Testing)
+### For Local Development/Testing
 
-1. **Start the chatbot server:**
-   ```bash
-   cd /path/to/electionbot_paper/chatbot
-   python launch_chatserver.py
-   ```
+Simply run the Python script directly:
 
-   You should see:
-   ```
-   Starting ElectionBot server...
-   Loading script: election2024_v2
-   Server initialized in X.XXs
-   Server running on http://127.0.0.1:8081
-   ```
+```bash
+cd /path/to/electionbot_paper/chatbot
+python launch_chatserver.py
+```
 
-2. **Access the chatbot:**
-   - Open your web browser
-   - Navigate to `http://localhost:8081/bot`
-   - You should see the ElectionBot interface
+You should see:
+```
+Starting ElectionBot server...
+Loading script: election2024_v2
+Server running on http://127.0.0.1:8081
+```
 
-3. **To stop the server:**
-   - Press `Ctrl+C` in the terminal
+Then open your browser to `http://localhost:8081/bot`
 
-### Production Deployment
+To stop: Press `Ctrl+C`
 
-#### Using Nginx and Supervisor
+### For Production Deployment
 
-1. **Install Nginx:**
-   ```bash
-   sudo apt install nginx  # Ubuntu/Debian
-   ```
+For production, we use Nginx as a reverse proxy and Supervisor to manage the process. This provides:
+- HTTPS support
+- Automatic restart on crashes
+- Better performance
+- Professional deployment
 
-2. **Create Nginx configuration:**
-   ```bash
-   sudo nano /etc/nginx/sites-available/electionbot
-   ```
+#### Step 1: Install and Configure Nginx
 
-   Add:
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com;
-       
-       location / {
-           proxy_pass http://127.0.0.1:8081;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection "upgrade";
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
-           proxy_read_timeout 86400;
-       }
-   }
-   ```
+```bash
+sudo apt install nginx
+sudo nano /etc/nginx/sites-available/electionbot
+```
 
-3. **Enable the site:**
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/electionbot /etc/nginx/sites-enabled/
-   sudo nginx -t  # Test configuration
-   sudo systemctl reload nginx
-   ```
+Add this configuration (replace `your-domain.com` with your actual domain):
 
-4. **Install and configure Supervisor:**
-   ```bash
-   sudo apt install supervisor
-   
-   # Copy the provided supervisor config
-   sudo cp config/electionbot.supervisor.conf /etc/supervisor/conf.d/
-   
-   # Edit the config to match your paths
-   sudo nano /etc/supervisor/conf.d/electionbot.supervisor.conf
-   
-   # Reload supervisor
-   sudo supervisorctl reread
-   sudo supervisorctl update
-   sudo supervisorctl start electionbot
-   ```
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400;
+    }
+}
+```
 
-5. **Check status:**
-   ```bash
-   sudo supervisorctl status electionbot
-   ```
+Enable the site:
+```bash
+sudo ln -s /etc/nginx/sites-available/electionbot /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### Step 2: Set Up Supervisor (keeps the bot running)
+
+```bash
+sudo apt install supervisor
+sudo cp config/electionbot.supervisor.conf /etc/supervisor/conf.d/
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start electionbot
+```
+
+The bot will now:
+- Start automatically on server boot
+- Restart if it crashes
+- Log output to `/var/log/supervisor/`
 
 ### Configuration
 
